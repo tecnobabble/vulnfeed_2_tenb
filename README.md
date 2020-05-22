@@ -44,8 +44,9 @@ SC_PORT=8443
 ## Usage
 
 Run the container, passing your .env file to the container and specify the feed you want to use.
-```bash
-$docker run --env-file .env vulnfeed_2_tenb --feed us-cert # queries us-cert alerts and adds appropriate ones to T.sc
+```
+$ docker run --env-file .env vulnfeed_2_tenb --feed us-cert # queries us-cert alerts and adds appropriate ones to T.sc
+
 Created a query for AA20-133A: Top 10 Routinely Exploited Vulnerabilities
 Created a query for AA20-126A: APT Groups Target Healthcare and Essential Services
 No CVEs listed in article: AA20-120A: Microsoft Office 365 Security Recommendations skipping.
