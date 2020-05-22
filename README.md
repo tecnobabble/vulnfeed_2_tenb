@@ -18,6 +18,8 @@ SC_ACCESS_KEY=89b0aa234237ec13b06da8283919c0f7
 SC_SECRET_KEY=8360bf971eb9a1e488d294d830a24eba
 SC_PORT=8443
 ```
+Download the vulnfeed_2_tenb.py script.
+
 Notes:
 * SC_ADDRESS can be an IP or hostname
 * SC_PORT is optional
