@@ -34,6 +34,8 @@ $ python3 vulnfeed_2_tsc.py -f us-cert # queries us-cert alerts and adds appropr
 
 $ python3 vulnfeed_2_tsc.py -f ms-isac # queries ms-isac alerts and adds appropriate ones to T.sc
 ```
+![vulnfeed_usage](https://drive.google.com/uc?id=1GWe_FSEk12WTxja-PMoIu5J55CuW_liy)
+
 
 ### Basic Workflow
 1. Script is called and a feed is specified
