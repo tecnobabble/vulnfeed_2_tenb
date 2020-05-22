@@ -33,8 +33,6 @@ Notes:
 $ python3 vulnfeed_2_tsc.py -f us-cert # queries us-cert alerts and adds appropriate ones to T.sc
 
 $ python3 vulnfeed_2_tsc.py -f ms-isac # queries ms-isac alerts and adds appropriate ones to T.sc
-
-$ python3 vulnfeed_2_tsc.py -h # displays help
 ```
 
 ### Basic Workflow
