@@ -35,11 +35,17 @@ SC_SECRET_KEY=8360bf971eb9a1e488d294d830a24eba
 SC_PORT=8443
 ```
 
-#### Notes:
-* SC_ADDRESS can be an IP or hostname
-* SC_PORT is optional; defaults to 443
-* The user who's API keys you select should be a part of the same primary group as your main users. No specific user role is needed for this user, as any user can create queries or view plugin data.
+#### Configuration Notes:
+* SC_ADDRESS can be an IP or hostname.
+* SC_PORT is optional; defaults to 443.
+* The user who's API keys you select should be a part of the same primary group as the user who will use the queries, though queries can be shared to other groups. 
+* No specific user role is needed for this user, as any user can create queries or view plugin data.
+
+## Requirements
 * T.sc 5.13 or higher is required for [API key usage](https://docs.tenable.com/tenablesc/Content/GenerateAPIKey.htm)
+* Docker; though technically you can run the script standalone (not supported).
+* Internet access for the container to access the RSS feed of the cyber threat feed you're grabbing
+* Network access to your T.sc instance over the UI/API interface (default is TCP 443)
 
 ## Usage
 
@@ -69,6 +75,7 @@ There is an existing query for AA20-020A: Critical Vulnerability in Citrix Appli
 
 ### Suggested operations
 * Run the script on a scheduled basis; daily is likely frequently enough. The script checks for and should not create duplicates.
+* If an advisory is released that specifies vulnerabilites that do not yet have published plugins, the script will check for and create a query when plugins do exist, as long as the advisory is still recent enough to be in the feed.
 * Run the script multiple times with different feeds specified to get multiple feeds into Tenable.sc.
 
 ### Basic workflow under the hood
