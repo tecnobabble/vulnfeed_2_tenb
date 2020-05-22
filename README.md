@@ -2,6 +2,8 @@
 
 VulnFeed 2 Tenb is a python script for parsing vulnerability data from Cyber Advisory Feeds into Tenable.sc.
 
+This is not supported by Tenable.
+
 ## Installation
 
 Use the package manager [pip](https://pip.pypa.io/en/stable/) to install the required libraries.
