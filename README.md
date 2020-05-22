@@ -45,11 +45,18 @@ SC_PORT=8443
 
 Run the container, passing your .env file to the container and specify the feed you want to use.
 ```bash
-docker run --env-file .env vulnfeed_2_tenb -f us-cert # queries us-cert alerts and adds appropriate ones to T.sc
-
-docker run --env-file .env vulnfeed_2_tenb -f ms-isac # queries ms-isac alerts and adds appropriate ones to T.sc
+$docker run --env-file .env vulnfeed_2_tenb --feed us-cert # queries us-cert alerts and adds appropriate ones to T.sc
+Created a query for AA20-133A: Top 10 Routinely Exploited Vulnerabilities
+Created a query for AA20-126A: APT Groups Target Healthcare and Essential Services
+No CVEs listed in article: AA20-120A: Microsoft Office 365 Security Recommendations skipping.
+There is an existing query for AA20-107A: Continued Threat Actor Exploitation Post Pulse Secure VPN Patching skipping.
+No CVEs listed in article: AA20-106A: Guidance on the North Korean Cyber Threat skipping.
+There is an existing query for AA20-099A: COVID-19 Exploited by Malicious Cyber Actors skipping.
+No CVEs listed in article: AA20-073A: Enterprise VPN Security skipping.
+No CVEs listed in article: AA20-049A: Ransomware Impacting Pipeline Operations skipping.
+There is an existing query for AA20-031A: Detecting Citrix CVE-2019-19781 skipping.
+There is an existing query for AA20-020A: Critical Vulnerability in Citrix Application Delivery Controller, Gateway, and SD-WAN WANOP skipping.
 ```
-![example vulnfeed_usage](https://res.cloudinary.com/salted-security/image/upload/v1590190014/vulnfeed_usage_pfdoua.png)
 ![example vulnfeed_output](https://res.cloudinary.com/salted-security/image/upload/v1590183891/vulnfeed_output_kj9bqt.png)
 
 ### Supported Feeds
