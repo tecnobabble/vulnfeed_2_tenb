@@ -37,9 +37,9 @@ SC_PORT=8443
 
 #### Notes:
 * SC_ADDRESS can be an IP or hostname
-* SC_PORT is optional
+* SC_PORT is optional; defaults to 443
 * The user who's API keys you select should be a part of the same primary group as your main users. No specific user role is needed for this user, as any user can create queries or view plugin data.
-* T.sc 5.13 or higher is required [API key usage](https://docs.tenable.com/tenablesc/Content/GenerateAPIKey.htm)
+* T.sc 5.13 or higher is required for [API key usage](https://docs.tenable.com/tenablesc/Content/GenerateAPIKey.htm)
 
 ## Usage
 
