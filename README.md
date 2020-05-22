@@ -10,7 +10,7 @@ Use the package manager [pip](https://pip.pypa.io/en/stable/) to install the req
 pip3 install feedparser pyTenable python-decouple requests
 ```
 
-Setup your local .env file with the appropriate tenable.sc attributes.
+Setup your local .env file with the appropriate tenable.sc attributes (replace the attributes below with the ones specific to your environment).
 
 ```bash
 SC_ADDRESS=10.0.0.102
