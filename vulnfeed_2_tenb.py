@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import feedparser
 import re
 from tenable.sc import TenableSC
@@ -6,16 +7,13 @@ from decouple import config
 import getopt, sys
 import requests
 
+# Set some variables that need setting (pulled from .env file passed to container or seen locally in the same folder as script)
 sc_address = config('SC_ADDRESS')
 sc_access_key = config('SC_ACCESS_KEY')
 sc_secret_key = config('SC_SECRET_KEY')
+sc_port = config('SC_PORT', default=443)
 
-
-if config('SC_PORT'):
-    sc_port = config('SC_PORT')
-else:
-    sc_port = "443"
-    
+# Handle arguments passed to script.  Note Help is defined but not yet supported.
 full_cmd_arguments = sys.argv
 argument_list = full_cmd_arguments[1:]
 short_options = "hf:"
@@ -28,21 +26,22 @@ except getopt.error as err:
     print (str(err))
     sys.exit(2)
 
-#####################3
+#####################
+# Most of the code that does the actual work
+#####################
 
-#print(input_url)
-#feed_url = feedparser.parse(input_url)
-
+# Login to Tenable.sc
 sc = TenableSC(sc_address, port=sc_port)
 sc.login(access_key=sc_access_key, secret_key=sc_secret_key)
 
-
+# Function to de-dupe CVE list.  Basically convert to a dictionary and back to a list.
 def de_dup_cve(x):
     return list(dict.fromkeys(x))
 
+# Pull all existing queries from T.sc that this API user can see.
 sc_queries = sc.queries.list()
 
-
+# Main function to pull feeds and query tenable
 def query_populate(input_url, feed_source):
     feed_url = feedparser.parse(input_url)
     for entry in feed_url.entries:
@@ -59,6 +58,7 @@ def query_populate(input_url, feed_source):
         if not cves:
             print("No CVEs listed in article:", entry.title, "skipping.")
             continue
+            
         # Query To see if plugins exist to test for the vulnerability
         has_plugins = False
         for cve in cves:
@@ -82,19 +82,22 @@ def query_populate(input_url, feed_source):
             query = sc.queries.create(entry.title, 'sumid', 'vuln', ('cveID', '=', cve_s), tags=str(feed_source))
             print("Created a query for", entry.title)
 
+# CMU CERT doesn't publish enough info in their feed, we need to grab and parse the actual articles.
 def cert_search(entry):
     url = re.search("(https://kb.cert.org/vuls/id/\d{3,})", str(entry))
     r = requests.get(url.group(0))
     return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
 
+# ICS CERT doesn't publish enough info in their feed, we need to grab and parse the actual articles.
 def ics_cert_search(entry):
     url = re.search("(https://www.us-cert.gov/ics/advisories/icsa-[\d-]{5,10})", str(entry))
     r = requests.get(url.group(0))
     return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
 
+# Actually handling the arguments that come into the container.
 for current_argument, current_value in arguments:
     if current_argument in ("-h", "--help"):
-        print ("Print the Read Me")
+        print ("To Do.  See README.")
     #elif current_argument in ("-s", "--t.sc"):
         #print ("Pass to T.sc and attempt to create queries")
     elif current_argument in ("-f", "--feed"):
