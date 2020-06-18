@@ -50,6 +50,8 @@ def query_populate(input_url, feed_source):
             advisory_cve = cert_search(entry)
         elif feed_source == "ICS-CERT":
             advisory_cve = ics_cert_search(entry)
+        elif feed_source == "ACSC":
+            advisory_cve = acsc_search(entry)
         else:
             advisory_cve = re.findall("(CVE-\d{4}-\d{1,5})", str(entry.summary_detail))
         # de-dupe any CVEs that are listed multiple times
@@ -94,6 +96,12 @@ def ics_cert_search(entry):
     r = requests.get(url.group(0))
     return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
 
+# ACSC doesn't publish enough info in their feed, we need to grab and parse the actual articles.
+def acsc_search(entry):
+    url = re.search("(https://www.cyber.gov.au/threats/.+)", str(entry['link']))
+    r = requests.get(url.group(0))
+    return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
+
 # Actually handling the arguments that come into the container.
 for current_argument, current_value in arguments:
     if current_argument in ("-h", "--help"):
@@ -110,6 +118,8 @@ for current_argument, current_value in arguments:
             query_populate('https://www.kb.cert.org/vuls/atomfeed', current_value.upper())
         elif current_value == "ics-cert":
             query_populate('https://www.us-cert.gov/ics/advisories/advisories.xml', current_value.upper())
+        elif current_value == "acsc":
+            query_populate('https://www.cyber.gov.au/rssfeed/2', current_value.upper())
         else:
             print("Input a valid feed")
             exit
