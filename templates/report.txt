@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <report>
 	<scVersion>5.14.1</scVersion>
-	<name>{{ Entry_Title }}</name>
-	<description></description>
+	<name>{{ Feed }}: {{ Entry_Title }}</name>
+	<description>{{ Entry_URL }}</description>
 	<type>pdf</type>
 	<styleFamily>5</styleFamily>
 	<attributeSetID>-1</attributeSetID>
