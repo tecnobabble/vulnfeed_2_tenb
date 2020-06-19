@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<report>
+	<scVersion>5.14.1</scVersion>
+	<name>{{ Entry_Title }}</name>
+	<description></description>
+	<type>pdf</type>
+	<styleFamily>5</styleFamily>
+	<attributeSetID>-1</attributeSetID>
+	<schedule>
+		<type>template</type>
+		<start></start>
+		<repeatRule></repeatRule>
+	</schedule>
+	<definition>{{ report_output }}</definition>
+</report>
