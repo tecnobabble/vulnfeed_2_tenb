@@ -12,6 +12,7 @@ import base64
 import ast
 from bs4 import BeautifulSoup
 import html
+import json
 
 # Set some variables that need setting (pulled from .env file passed to container or seen locally in the same folder as script)
 sc_address = config('SC_ADDRESS')
@@ -22,8 +23,8 @@ sc_port = config('SC_PORT', default=443)
 # Handle arguments passed to script.  Note Help is defined but not yet supported.
 full_cmd_arguments = sys.argv
 argument_list = full_cmd_arguments[1:]
-short_options = "hfr:"
-long_options = ["help", "feed=", "report"]
+short_options = "hfra:"
+long_options = ["help", "feed=", "report", "alert"]
 
 try:
     arguments, values = getopt.getopt(argument_list, short_options, long_options)
@@ -86,12 +87,17 @@ def query_populate(input_url, feed_source):
             # Turn the CVEs into a comma list
             cve_s = ', '.join(cves)
             # Create the Query
-            query = sc.queries.create(entry.title, 'sumid', 'vuln', ('cveID', '=', cve_s), tags=str(feed_source))
+            query_response = sc.queries.create(entry.title, 'sumid', 'vuln', ('cveID', '=', cve_s), tags=str(feed_source))
+            query_id = query_response['id']
             print("Created a query for", entry.title)
-        if report_request:
-            entry_description = entry_parse(entry.summary)
-            cve_s = ', '.join(cves)
-            gen_report(entry, entry_description, cve_s, feed_source)
+            if report_request is True:
+                entry_description = entry_parse(entry.summary)
+                cve_s = ', '.join(cves)
+                report_id = gen_report(entry, entry_description, cve_s, feed_source)
+                print("Created a report for", entry.title)
+            if alert_request is True:
+                gen_alert(report_id, query_id, entry)
+                print("Created an alert for", entry.title)
 
 # Generate a canned t.sc report about the entry
 def gen_report(entry, entry_description, cve_s, feed_source):
@@ -142,8 +148,19 @@ def gen_report(entry, entry_description, cve_s, feed_source):
     generated_tsc_report_file = open(report_name, "r")
     tsc_file = sc.files.upload(generated_tsc_report_file)
     report_data = { "name":"","filename":str(tsc_file) }
-    sc.post('reportDefinition/import', json=report_data)
+    report_post = sc.post('reportDefinition/import', json=report_data).text
+    report_post = json.loads(report_post)
+    report_id = report_post['response']['id']
     generated_tsc_report_file.close()
+    return report_id
+
+
+# Generate an alert (requires a query and report to be created)
+def gen_alert(report_id, query_id, entry):
+    alert_name = entry.title
+    alert_description = "For more information, please see the full page at " + entry.link
+    alert_schedule = {"start":"TZID=America/New_York:20200622T070000","repeatRule":"FREQ=WEEKLY;INTERVAL=1;BYDAY=MO","type":"ical","enabled":"true"}
+    sc.alerts.create(query={"id":query_id}, schedule=alert_schedule, data_type="vuln", name=alert_name, description=alert_description, trigger=('sumip','>=','1'), always_exec_on_trigger=True, action=[{'type': 'report','report':{'id': report_id}}])
 
     
 # Get a reasonable summary if one isn't provided
@@ -171,6 +188,12 @@ def acsc_search(entry):
     r = requests.get(url.group(0))
     return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
 
+global report_request
+global alert_request
+report_request = False
+alert_request = False
+
+
 # Actually handling the arguments that come into the container.
 for current_argument, current_value in arguments:
     if current_argument in ("-h", "--help"):
@@ -179,8 +202,9 @@ for current_argument, current_value in arguments:
     #elif current_argument in ("-s", "--t.sc"):
         #print ("Pass to T.sc and attempt to create queries")
     if current_argument in ("--report"):
-        global report_request
         report_request = True
+    if current_argument in ("--alert"):
+        alert_request = True
     if current_argument in ("-f", "--feed"):
         #print (("Enabling special output mode (%s)") % (current_value))
         if current_value == "us-cert":
