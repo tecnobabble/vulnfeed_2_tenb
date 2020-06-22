@@ -11,14 +11,13 @@ from phpserialize import serialize, unserialize
 import base64
 import ast
 from bs4 import BeautifulSoup
+import html
 
-'''
 # Set some variables that need setting (pulled from .env file passed to container or seen locally in the same folder as script)
 sc_address = config('SC_ADDRESS')
 sc_access_key = config('SC_ACCESS_KEY')
 sc_secret_key = config('SC_SECRET_KEY')
 sc_port = config('SC_PORT', default=443)
-'''
 
 # Handle arguments passed to script.  Note Help is defined but not yet supported.
 full_cmd_arguments = sys.argv
@@ -36,14 +35,14 @@ except getopt.error as err:
 #####################
 # Most of the code that does the actual work
 #####################
-'''
+
 # Login to Tenable.sc
 sc = TenableSC(sc_address, port=sc_port)
 sc.login(access_key=sc_access_key, secret_key=sc_secret_key)
 
 # Pull all existing queries from T.sc that this API user can see.
 sc_queries = sc.queries.list()
-'''
+
 # Function to de-dupe CVE list.  Basically convert to a dictionary and back to a list.
 def de_dup_cve(x):
     return list(dict.fromkeys(x))
@@ -67,7 +66,6 @@ def query_populate(input_url, feed_source):
         if not cves:
             print("No CVEs listed in article:", entry.title, "skipping.")
             continue
-        '''    
         # Query To see if plugins exist to test for the vulnerability
         has_plugins = False
         for cve in cves:
@@ -90,9 +88,7 @@ def query_populate(input_url, feed_source):
             # Create the Query
             query = sc.queries.create(entry.title, 'sumid', 'vuln', ('cveID', '=', cve_s), tags=str(feed_source))
             print("Created a query for", entry.title)
-        '''
         if report_request:
-            #print(entry.title, entry.link)
             entry_description = entry_parse(entry.summary)
             cve_s = ', '.join(cves)
             gen_report(entry, entry_description, cve_s, feed_source)
@@ -141,13 +137,21 @@ def gen_report(entry, entry_description, cve_s, feed_source):
     generated_tsc_report_file = open(report_name, "w")
     generated_tsc_report_file.write(report_xml)
     generated_tsc_report_file.close()
+
+    # Upload the report to T.sc
+    generated_tsc_report_file = open(report_name, "r")
+    tsc_file = sc.files.upload(generated_tsc_report_file)
+    report_data = { "name":"","filename":str(tsc_file) }
+    sc.post('reportDefinition/import', json=report_data)
+    generated_tsc_report_file.close()
+
     
 # Get a reasonable summary if one isn't provided
 def entry_parse(entry_description):
+    entry_description = html.unescape(entry_description)
     entry_description = entry_description.replace("<p>", " ").replace("<br/>"," ").replace("\n","")
-    entry_description = BeautifulSoup(entry_description, features="html.parser")
-    entry_description = entry_description.text[:500] + (entry_description.text[500:] and '...')
-    return entry_description
+    entry_description = BeautifulSoup(entry_description, 'lxml') #features="html.parser")
+    return entry_description.get_text()[:500] + (entry_description.get_text()[500:] and '...')
 
 # CMU CERT doesn't publish enough info in their feed, we need to grab and parse the actual articles.
 def cert_search(entry):
