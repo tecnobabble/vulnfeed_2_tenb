@@ -53,6 +53,10 @@ def tsc_login():
 def get_tsc_queries(sc):
     sc_queries = sc.queries.list()
 
+# Pull all existing assets from T.sc that this API user can see.
+def get_tsc_assets(sc):
+    sc_assets = sc.asset_lists.list()
+
 # Function to de-dupe CVE list.  Basically convert to a dictionary and back to a list.
 def de_dup_cve(x):
     return list(dict.fromkeys(x))
@@ -102,8 +106,16 @@ def query_populate():#input_url, feed_source, sc, email_list):
             query_id = query_response['id']
             print("Created a query for", entry.title)
             if asset_request is True:
-                gen_asset(entry, cves)
-                print("Created an asset for", entry.title)
+                sc_assets = sc.asset_lists.list()
+                for x in range(len(sc_assets['usable'])):
+                    skip_asset = False
+                    if entry.title == sc_assets['usable'][x]['name']:
+                        print("There is an existing asset for", entry.title, "skipping.")
+                        skip_asset = True
+                        break
+                if skip_asset is False:
+                    gen_asset(entry, cves)
+                    print("Created an asset for", entry.title)
             if report_request is True:
                 entry_description = entry_parse(entry.summary)
                 cve_s = ', '.join(cves)
@@ -191,7 +203,7 @@ def gen_alert(report_id, query_id, entry):
         print("Created an email alert for", entry.title)
     else:
         print("Alert creation specified, but no report or email recipients noted, exiting.")
-        exit
+        exit()
 
 # Generate an asset
 def gen_asset(entry, cves):
@@ -280,6 +292,8 @@ for current_argument, current_value in arguments:
 # Based on the data provided, decide what to do
 if len(feed_URL) >= 10:
     sc = tsc_login()
+    if asset_request is True:
+        get_tsc_assets(sc)
     query_populate()
 else:
     print("Please specify a feed or --help")
