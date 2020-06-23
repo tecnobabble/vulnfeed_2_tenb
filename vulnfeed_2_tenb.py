@@ -20,11 +20,22 @@ sc_access_key = config('SC_ACCESS_KEY')
 sc_secret_key = config('SC_SECRET_KEY')
 sc_port = config('SC_PORT', default=443)
 
+
+global report_request
+global alert_request
+global feed
+global feed_URL
+global email_list
+global sc
+report_request = False
+alert_request = False
+email_list = []
+
 # Handle arguments passed to script.  Note Help is defined but not yet supported.
 full_cmd_arguments = sys.argv
 argument_list = full_cmd_arguments[1:]
-short_options = "hfra:"
-long_options = ["help", "feed=", "report", "alert"]
+short_options = "hfrae:"
+long_options = ["help", "feed=", "report", "alert", "email="]
 
 try:
     arguments, values = getopt.getopt(argument_list, short_options, long_options)
@@ -38,18 +49,21 @@ except getopt.error as err:
 #####################
 
 # Login to Tenable.sc
-sc = TenableSC(sc_address, port=sc_port)
-sc.login(access_key=sc_access_key, secret_key=sc_secret_key)
+def tsc_login():
+    sc = TenableSC(sc_address, port=sc_port)
+    sc.login(access_key=sc_access_key, secret_key=sc_secret_key)
+    return sc
 
 # Pull all existing queries from T.sc that this API user can see.
-sc_queries = sc.queries.list()
+def get_tsc_queries(sc):
+    sc_queries = sc.queries.list()
 
 # Function to de-dupe CVE list.  Basically convert to a dictionary and back to a list.
 def de_dup_cve(x):
     return list(dict.fromkeys(x))
 
 # Main function to pull feeds and query tenable
-def query_populate(input_url, feed_source):
+def query_populate(input_url, feed_source, sc, email_list):
     feed_url = feedparser.parse(input_url)
     for entry in feed_url.entries:
         # Search through the text of the advisory and pull out any CVEs
@@ -79,6 +93,7 @@ def query_populate(input_url, feed_source):
         if has_plugins is False:
             print("No detection plugins found for CVEs in", entry.title, "skipping.")
             continue
+        sc_queries = sc.queries.list()
         for x in range(len(sc_queries['usable'])):
             if entry.title == sc_queries['usable'][x]['name']:
                 print("There is an existing query for", entry.title, "skipping.")
@@ -95,7 +110,10 @@ def query_populate(input_url, feed_source):
                 cve_s = ', '.join(cves)
                 report_id = gen_report(entry, entry_description, cve_s, feed_source)
                 print("Created a report for", entry.title)
-            if alert_request is True:
+            if alert_request is True and report_request is False:
+                gen_alert(0, query_id, entry)
+                #print("Created an email alert for", entry.title)
+            elif alert_request is True:
                 gen_alert(report_id, query_id, entry)
                 print("Created an alert for", entry.title)
 
@@ -160,9 +178,16 @@ def gen_alert(report_id, query_id, entry):
     alert_name = entry.title
     alert_description = "For more information, please see the full page at " + entry.link
     alert_schedule = {"start":"TZID=America/New_York:20200622T070000","repeatRule":"FREQ=WEEKLY;INTERVAL=1;BYDAY=MO","type":"ical","enabled":"true"}
-    sc.alerts.create(query={"id":query_id}, schedule=alert_schedule, data_type="vuln", name=alert_name, description=alert_description, trigger=('sumip','>=','1'), always_exec_on_trigger=True, action=[{'type': 'report','report':{'id': report_id}}])
+    if report_request is True: 
+        sc.alerts.create(query={"id":query_id}, schedule=alert_schedule, data_type="vuln", name=alert_name, description=alert_description, trigger=('sumip','>=','1'), always_exec_on_trigger=True, action=[{'type': 'report','report':{'id': report_id}}])
+    elif report_request is False and len(email_list) >= 1:
+        email_s = ','.join(email_list)
+        sc.alerts.create(query={"id":query_id}, schedule=alert_schedule, data_type="vuln", name=alert_name, description=alert_description, trigger=('sumip','>=','1'), always_exec_on_trigger=True, action=[{'type': 'email','subject': alert_name, 'message': alert_description, 'addresses': email_s, 'includeResults': 'true'}])
+        print("Created an email alert for", entry.title)
+    else:
+        print("Alert creation specified, but no report or email recipients noted, exiting.")
+        exit
 
-    
 # Get a reasonable summary if one isn't provided
 def entry_parse(entry_description):
     entry_description = html.unescape(entry_description)
@@ -188,35 +213,54 @@ def acsc_search(entry):
     r = requests.get(url.group(0))
     return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
 
-global report_request
-global alert_request
-report_request = False
-alert_request = False
+# Validate proper email address format
 
+# Define a function for
+# for validating an Email
+def email_validate(email):
+    regex = '[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w{2,3}'
+    for i in email:
+        if(re.search(regex,i)):
+            email_list += [i]
+        else:
+            print("Invalid Email Address:", i)
+            exit()
+    return email_list
 
 # Actually handling the arguments that come into the container.
 for current_argument, current_value in arguments:
     if current_argument in ("-h", "--help"):
-        print ("To Do.  See README.")
-        break
-    #elif current_argument in ("-s", "--t.sc"):
+        print ("To Do.  See README.") # TO DO: Turn into function
+        exit()
+    #elif current_argument in ("-s", "--t.sc"): # Not implemented until we have T.io functionality
         #print ("Pass to T.sc and attempt to create queries")
+    if current_argument in ("--email"):
+        passed_emails = current_value.split(",")
+        email_list = email_validate(passed_emails)
     if current_argument in ("--report"):
         report_request = True
     if current_argument in ("--alert"):
         alert_request = True
     if current_argument in ("-f", "--feed"):
         #print (("Enabling special output mode (%s)") % (current_value))
+        feed = current_value.upper()
         if current_value == "us-cert":
-            query_populate('https://www.us-cert.gov/ncas/alerts.xml', current_value.upper())
+            feed_URL = "https://www.us-cert.gov/ncas/alerts.xml"
+            #query_populate('https://www.us-cert.gov/ncas/alerts.xml', current_value.upper())
         elif current_value == "ms-isac" or current_value == "cis":
-            query_populate('https://www.cisecurity.org/feed/advisories', current_value.upper())
+            feed_URL = "https://www.cisecurity.org/feed/advisories"
         elif current_value == "cert":
-            query_populate('https://www.kb.cert.org/vuls/atomfeed', current_value.upper())
+            feed_URL = "https://www.kb.cert.org/vuls/atomfeed"
         elif current_value == "ics-cert":
-            query_populate('https://www.us-cert.gov/ics/advisories/advisories.xml', current_value.upper())
+            feed_URL = "https://www.us-cert.gov/ics/advisories/advisories.xml"
         elif current_value == "acsc":
-            query_populate('https://www.cyber.gov.au/rssfeed/2', current_value.upper())
+            feed_URL = "https://www.cyber.gov.au/rssfeed/2"
         else:
             print("Input a valid feed")
-            exit
+            exit()
+
+# Based on the data provided, decide what to do
+if feed_URL:
+    sc = tsc_login()
+    #get_tsc_queries(sc)
+    query_populate(feed_URL, feed, sc, email_list)
