@@ -20,16 +20,8 @@ sc_access_key = config('SC_ACCESS_KEY')
 sc_secret_key = config('SC_SECRET_KEY')
 sc_port = config('SC_PORT', default=443)
 
-
-global report_request
-global alert_request
-global feed
-global feed_URL
-global email_list
-global sc
 report_request = False
 alert_request = False
-email_list = []
 
 # Handle arguments passed to script.  Note Help is defined but not yet supported.
 full_cmd_arguments = sys.argv
@@ -63,15 +55,15 @@ def de_dup_cve(x):
     return list(dict.fromkeys(x))
 
 # Main function to pull feeds and query tenable
-def query_populate(input_url, feed_source, sc, email_list):
-    feed_url = feedparser.parse(input_url)
-    for entry in feed_url.entries:
+def query_populate():#input_url, feed_source, sc, email_list):
+    feed_details = feedparser.parse(feed_URL)
+    for entry in feed_details.entries:
         # Search through the text of the advisory and pull out any CVEs
-        if feed_source == "CERT":
+        if feed == "CERT":
             advisory_cve = cert_search(entry)
-        elif feed_source == "ICS-CERT":
+        elif feed == "ICS-CERT":
             advisory_cve = ics_cert_search(entry)
-        elif feed_source == "ACSC":
+        elif feed == "ACSC":
             advisory_cve = acsc_search(entry)
         else:
             advisory_cve = re.findall("(CVE-\d{4}-\d{1,5})", str(entry.summary_detail))
@@ -102,13 +94,13 @@ def query_populate(input_url, feed_source, sc, email_list):
             # Turn the CVEs into a comma list
             cve_s = ', '.join(cves)
             # Create the Query
-            query_response = sc.queries.create(entry.title, 'sumid', 'vuln', ('cveID', '=', cve_s), tags=str(feed_source))
+            query_response = sc.queries.create(entry.title, 'sumid', 'vuln', ('cveID', '=', cve_s), tags=str(feed))
             query_id = query_response['id']
             print("Created a query for", entry.title)
             if report_request is True:
                 entry_description = entry_parse(entry.summary)
                 cve_s = ', '.join(cves)
-                report_id = gen_report(entry, entry_description, cve_s, feed_source)
+                report_id = gen_report(entry, entry_description, cve_s)
                 print("Created a report for", entry.title)
             if alert_request is True and report_request is False:
                 gen_alert(0, query_id, entry)
@@ -118,7 +110,7 @@ def query_populate(input_url, feed_source, sc, email_list):
                 print("Created an alert for", entry.title)
 
 # Generate a canned t.sc report about the entry
-def gen_report(entry, entry_description, cve_s, feed_source):
+def gen_report(entry, entry_description, cve_s):
     # Set some variables for parsing
     Entry_Title = entry.title
     Entry_URL = "For more information, please see the full page at " + entry.link
@@ -156,7 +148,7 @@ def gen_report(entry, entry_description, cve_s, feed_source):
 
     # Render the full XML report template and write the output to a file that we'll then upload to tsc.
     report = env.get_template('report.txt')
-    report_xml = report.render(Entry_Title=Entry_Title, Feed=feed_source, Entry_URL=Entry_URL, report_output=report_output.decode('utf8'))
+    report_xml = report.render(Entry_Title=Entry_Title, Feed=feed, Entry_URL=Entry_URL, report_output=report_output.decode('utf8'))
     report_name = Entry_Title.replace(" ","").replace(":","-")[:15] + "_report.xml"
     generated_tsc_report_file = open(report_name, "w")
     generated_tsc_report_file.write(report_xml)
@@ -170,19 +162,25 @@ def gen_report(entry, entry_description, cve_s, feed_source):
     report_post = json.loads(report_post)
     report_id = report_post['response']['id']
     generated_tsc_report_file.close()
+
+    # Configure email on the report if set
+    if len(email_list) >= 5:
+        report_patch_path = "reportDefinition/" + str(report_id)
+        report_email_info = { "emailTargets": email_list }
+        sc.patch(report_patch_path, json=report_email_info)
     return report_id
 
 
 # Generate an alert (requires a query and report to be created)
 def gen_alert(report_id, query_id, entry):
-    alert_name = entry.title
+    alert_name = feed + ": " + entry.title
     alert_description = "For more information, please see the full page at " + entry.link
     alert_schedule = {"start":"TZID=America/New_York:20200622T070000","repeatRule":"FREQ=WEEKLY;INTERVAL=1;BYDAY=MO","type":"ical","enabled":"true"}
     if report_request is True: 
         sc.alerts.create(query={"id":query_id}, schedule=alert_schedule, data_type="vuln", name=alert_name, description=alert_description, trigger=('sumip','>=','1'), always_exec_on_trigger=True, action=[{'type': 'report','report':{'id': report_id}}])
-    elif report_request is False and len(email_list) >= 1:
-        email_s = ','.join(email_list)
-        sc.alerts.create(query={"id":query_id}, schedule=alert_schedule, data_type="vuln", name=alert_name, description=alert_description, trigger=('sumip','>=','1'), always_exec_on_trigger=True, action=[{'type': 'email','subject': alert_name, 'message': alert_description, 'addresses': email_s, 'includeResults': 'true'}])
+    elif report_request is False and len(email_list) >= 5:
+        #email_s = ','.join(email_list)
+        sc.alerts.create(query={"id":query_id}, schedule=alert_schedule, data_type="vuln", name=alert_name, description=alert_description, trigger=('sumip','>=','1'), always_exec_on_trigger=True, action=[{'type': 'email','subject': alert_name, 'message': alert_description, 'addresses': email_list, 'includeResults': 'true'}])
         print("Created an email alert for", entry.title)
     else:
         print("Alert creation specified, but no report or email recipients noted, exiting.")
@@ -213,18 +211,17 @@ def acsc_search(entry):
     r = requests.get(url.group(0))
     return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
 
-# Validate proper email address format
-
-# Define a function for
-# for validating an Email
+# Define a function for validating an email
 def email_validate(email):
     regex = '[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w{2,3}'
+    email_list = []
     for i in email:
         if(re.search(regex,i)):
             email_list += [i]
         else:
             print("Invalid Email Address:", i)
             exit()
+    email_list = ','.join(email_list)
     return email_list
 
 # Actually handling the arguments that come into the container.
@@ -235,6 +232,7 @@ for current_argument, current_value in arguments:
     #elif current_argument in ("-s", "--t.sc"): # Not implemented until we have T.io functionality
         #print ("Pass to T.sc and attempt to create queries")
     if current_argument in ("--email"):
+        passed_emails = ""
         passed_emails = current_value.split(",")
         email_list = email_validate(passed_emails)
     if current_argument in ("--report"):
@@ -262,5 +260,4 @@ for current_argument, current_value in arguments:
 # Based on the data provided, decide what to do
 if feed_URL:
     sc = tsc_login()
-    #get_tsc_queries(sc)
-    query_populate(feed_URL, feed, sc, email_list)
+    query_populate()
