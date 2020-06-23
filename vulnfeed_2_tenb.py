@@ -22,12 +22,14 @@ sc_port = config('SC_PORT', default=443)
 
 report_request = False
 alert_request = False
+asset_request = False
+feed_URL = ""
 
 # Handle arguments passed to script.  Note Help is defined but not yet supported.
 full_cmd_arguments = sys.argv
 argument_list = full_cmd_arguments[1:]
-short_options = "hfrae:"
-long_options = ["help", "feed=", "report", "alert", "email="]
+short_options = "hfre:"
+long_options = ["help", "feed=", "report", "alert", "email=", "asset"]
 
 try:
     arguments, values = getopt.getopt(argument_list, short_options, long_options)
@@ -58,6 +60,7 @@ def de_dup_cve(x):
 def query_populate():#input_url, feed_source, sc, email_list):
     feed_details = feedparser.parse(feed_URL)
     for entry in feed_details.entries:
+        advisory_cve = []
         # Search through the text of the advisory and pull out any CVEs
         if feed == "CERT":
             advisory_cve = cert_search(entry)
@@ -97,6 +100,9 @@ def query_populate():#input_url, feed_source, sc, email_list):
             query_response = sc.queries.create(entry.title, 'sumid', 'vuln', ('cveID', '=', cve_s), tags=str(feed))
             query_id = query_response['id']
             print("Created a query for", entry.title)
+            if asset_request is True:
+                gen_asset(entry, cves)
+                print("Created an asset for", entry.title)
             if report_request is True:
                 entry_description = entry_parse(entry.summary)
                 cve_s = ', '.join(cves)
@@ -186,6 +192,17 @@ def gen_alert(report_id, query_id, entry):
         print("Alert creation specified, but no report or email recipients noted, exiting.")
         exit
 
+# Generate an asset
+def gen_asset(entry, cves):
+    asset_rules = ['any']
+    for cve in cves:
+        cve_string = "CVE|" + cve
+        asset_rules.append(('xref','eq',cve_string))
+    asset_rules = tuple(asset_rules)
+    asset_name = entry.title
+    asset_description = "For more information, please see the full page at " + entry.link
+    output = sc.asset_lists.create(name=asset_name,description=asset_description,list_type="dynamic",tags=feed,rules=asset_rules)
+
 # Get a reasonable summary if one isn't provided
 def entry_parse(entry_description):
     entry_description = html.unescape(entry_description)
@@ -231,14 +248,16 @@ for current_argument, current_value in arguments:
         exit()
     #elif current_argument in ("-s", "--t.sc"): # Not implemented until we have T.io functionality
         #print ("Pass to T.sc and attempt to create queries")
-    if current_argument in ("--email"):
+    if current_argument in ("-e","--email"):
         passed_emails = ""
         passed_emails = current_value.split(",")
         email_list = email_validate(passed_emails)
-    if current_argument in ("--report"):
+    if current_argument in ("-r", "--report"):
         report_request = True
     if current_argument in ("--alert"):
         alert_request = True
+    if current_argument in ("--asset"):
+        asset_request = True
     if current_argument in ("-f", "--feed"):
         #print (("Enabling special output mode (%s)") % (current_value))
         feed = current_value.upper()
@@ -258,6 +277,8 @@ for current_argument, current_value in arguments:
             exit()
 
 # Based on the data provided, decide what to do
-if feed_URL:
+if len(feed_URL) >= 10:
     sc = tsc_login()
     query_populate()
+else:
+    print("Please specify a feed or --help")
