@@ -24,6 +24,7 @@ report_request = False
 alert_request = False
 asset_request = False
 feed_URL = ""
+email_list = ""
 
 # Handle arguments passed to script.  Note Help is defined but not yet supported.
 full_cmd_arguments = sys.argv
