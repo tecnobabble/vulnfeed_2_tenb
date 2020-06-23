@@ -1,8 +1,10 @@
 # VulnFeed 2 Tenb
 
-VulnFeed 2 Tenb is a way to parse vulnerability data from Cyber Advisory Feeds into Tenable.sc.
+VulnFeed 2 Tenb is a way to parse vulnerability data from Cyber Advisory Feeds into [Tenable.sc](https://www.tenable.com/products/tenable-sc).
 
-This is not supported by Tenable.
+Integrate Tenable.sc with any of the supported Cyber Advisory Organizational feeds (US-CERT, MS-ISAC, CIS, CERT, etc) to automatically pull in advisory alerts, rather than manually copying/pasting them in. If the advisory contains a CVE, a query will be created within Tenable.sc with the name of the advisory (ex: Multiple Vulnerabilities in Google Chrome) that can seen, prioritized, and reported on by the Tenable user.  Assets, reports and alerts can also be created automatically.
+
+**This is not supported by Tenable.**
 
 ## Installation
 
@@ -49,7 +51,38 @@ SC_PORT=8443
 
 ## Usage
 
-Run the container, passing your .env file to the container and specify the feed you want to use.
+Run the container, passing your .env file to the container and specify the feed you want to use, plus any additional content generation.
+
+Flags on the script are:
+
+ - `--feed`
+	 - Generates a query based on the CVEs noted in the feed entry. 
+	 - See the supported feeds below. 
+		 * [MS-ISAC](https://www.cisecurity.org/resources/advisory/?o=ms-isac&type=advisory) and [CIS](https://www.cisecurity.org/resources/advisory/?o=ms-isac&type=advisory)
+           * Note, this is the same feed; you can specify either for different labels in Tenable.sc
+        * [US-CERT](https://www.us-cert.gov/ncas/alerts)  
+        * [ICS-CERT](https://www.us-cert.gov/ics/advisories)   
+        * [CERT](https://www.kb.cert.org/vuls/)   
+        * [ACSC](https://www.cyber.gov.au/threats)
+
+	 - Takes 1 string argument; required.  
+ -  `--asset`
+	 - Creates a dynamic asset in Tenable.sc with the CVEs noted in the feed entry.
+	 - No arguments, optional.
+ - `--report`
+	 - Creates an on-demand PDF report in Tenable.sc with the CVEs noted in the feed entry.
+	 - No arguments, optional.
+ - `--alert`
+	 - Creates a weekly alert in Tenable.sc using the query created above.
+	 - If specified with the `--report` flag, the alert will generate the report IF any vulnerable instances are found.
+	 - No arguments, optional.
+ - `--email`
+	 - If specified with the `--report` flag, email targets are added in the report definition. 
+	 - If specified with the `--alert` flag (and no `--report` flag), the alert will generate an email to the specified addresses, including the scan results.
+	 - If specified without either the `--report` or `--alert` flag, this has no impact.
+	 - Multiple emails can be comma separated and encased in quotes.
+	 - Takes 1 string argument, optional.
+
 ```
 $ docker run --env-file .env vulnfeed_2_tenb --feed us-cert
 
@@ -66,18 +99,14 @@ There is an existing query for AA20-020A: Critical Vulnerability in Citrix Appli
 ```
 ![example vulnfeed_output](https://res.cloudinary.com/salted-security/image/upload/v1590183891/vulnfeed_output_kj9bqt.png)
 
-### Supported Feeds
-* [MS-ISAC](https://www.cisecurity.org/resources/advisory/?o=ms-isac&type=advisory) and [CIS](https://www.cisecurity.org/resources/advisory/?o=ms-isac&type=advisory)
-    * Note, this is the same feed; you can specify either for different labels in Tenable.sc
-* [US-CERT](https://www.us-cert.gov/ncas/alerts)
-* [ICS-CERT](https://www.us-cert.gov/ics/advisories)
-* [CERT](https://www.kb.cert.org/vuls/)
-* [ACSC](https://www.cyber.gov.au/threats)
 
 ### Suggested operations
 * Run the script on a scheduled basis; daily is likely frequently enough. The script checks for and should not create duplicates.
-* If an advisory is released that specifies vulnerabilites that do not yet have published plugins, the script will check for and create a query when plugins do exist, as long as the advisory is still recent enough to be in the feed.
+* If you re-run the script with additional flags (ex: `--asset` or `--report`), you must delete the original query in order for new assets or reports to be created for previously existing queries.
+* If an advisory is released that specifies vulnerabilities that do not yet have published plugins, the script will check for and create a query when plugins do exist, as long as the advisory is still recent enough to be in the feed.
 * Run the script multiple times with different feeds specified to get multiple feeds into Tenable.sc.
+* Generated alerts currently will run on a weekly schedule, Mondays at 7 AM EST.  
+* All queries, assets, reports, and alerts can be edited after generation by the Tenable.sc user.  If the query name is changed, the script may generate a new query with the original name, and other objects if specified.
 
 ### Basic workflow under the hood
 1. Script is called and a feed is specified
@@ -86,6 +115,7 @@ There is an existing query for AA20-020A: Critical Vulnerability in Citrix Appli
 4. Tenable.sc is queried to see if detection exists for the CVEs listed in the entry, if no detection, the entry is discarded.
 5. Tenable.sc is queried to see if a Query already exists, if so, the entry is skipped.
 6. A Query is created with the feed title and CVEs as filters.
+7. If additional objects are requested (assets, reports, or alerts), they are created.
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
