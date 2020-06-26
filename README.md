@@ -41,7 +41,7 @@ SC_PORT=8443
 * SC_ADDRESS can be an IP or hostname.
 * SC_PORT is optional; defaults to 443.
 * The user who's API keys you select should be a part of the same primary group as the user who will use the queries, though queries can be shared to other groups. 
-* No specific user role is needed for this user, as any user can create queries or view plugin data.
+* The user must be able to create alerts, if the `--alert` flag is used, otherwise no specific user role is needed for this user, as any user can create queries, assets, and reports or view plugin attribute data.
 
 ## Requirements
 * T.sc 5.13 or higher is required for [API key usage](https://docs.tenable.com/tenablesc/Content/GenerateAPIKey.htm)
@@ -102,11 +102,10 @@ There is an existing query for AA20-020A: Critical Vulnerability in Citrix Appli
 
 ### Suggested operations
 * Run the script on a scheduled basis; daily is likely frequently enough. The script checks for and should not create duplicates.
-* If you re-run the script with additional flags (ex: `--asset` or `--report`), you must delete the original query in order for new assets or reports to be created for previously existing queries.
 * If an advisory is released that specifies vulnerabilities that do not yet have published plugins, the script will check for and create a query when plugins do exist, as long as the advisory is still recent enough to be in the feed.
 * Run the script multiple times with different feeds specified to get multiple feeds into Tenable.sc.
 * Generated alerts currently will run on a weekly schedule, Mondays at 7 AM EST.  
-* All queries, assets, reports, and alerts can be edited after generation by the Tenable.sc user.  If the query name is changed, the script may generate a new query with the original name, and other objects if specified.
+* All queries, assets, reports, and alerts can be edited after generation by the Tenable.sc user.  If the object name is changed, the script may generate a new object with the original name.
 
 ### Basic workflow under the hood
 1. Script is called and a feed is specified

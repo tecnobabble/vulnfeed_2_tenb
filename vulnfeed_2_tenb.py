@@ -93,10 +93,11 @@ def query_populate():#input_url, feed_source, sc, email_list):
         if has_plugins is False:
             print("No detection plugins found for CVEs in", entry.title, "skipping.")
             continue
-        sc_queries = sc.queries.list()
+        #sc_queries = sc.queries.list()
         for x in range(len(sc_queries['usable'])):
             if entry.title == sc_queries['usable'][x]['name']:
                 print("There is an existing query for", entry.title, "skipping.")
+                query_id = sc_queries['usable'][x]['id']
                 break
         else:
             # Turn the CVEs into a comma list
@@ -105,32 +106,47 @@ def query_populate():#input_url, feed_source, sc, email_list):
             query_response = sc.queries.create(entry.title, 'sumid', 'vuln', ('cveID', '=', cve_s), tags=str(feed))
             query_id = query_response['id']
             print("Created a query for", entry.title)
-            if asset_request is True:
-                sc_assets = sc.asset_lists.list()
-                for x in range(len(sc_assets['usable'])):
-                    skip_asset = False
-                    if entry.title == sc_assets['usable'][x]['name']:
-                        print("There is an existing asset for", entry.title, "skipping.")
-                        skip_asset = True
-                        break
-                if skip_asset is False:
-                    gen_asset(entry, cves)
-                    print("Created an asset for", entry.title)
-            if report_request is True:
-                entry_description = entry_parse(entry.summary)
-                cve_s = ', '.join(cves)
+        if asset_request is True:
+            skip_asset = False 
+            for x in range(len(sc_assets['usable'])):
+                if entry.title == sc_assets['usable'][x]['name']:
+                    print("There is an existing asset for", entry.title, "skipping.")
+                    skip_asset = True
+                    break
+            if skip_asset is False:
+                gen_asset(entry, cves)
+                print("Created an asset for", entry.title)
+        if report_request is True:
+            entry_description = entry_parse(entry.summary)
+            cve_s = ', '.join(cves)
+            report_name = feed + ": " + entry.title
+            skip_report = False
+            #print(sc_reports['response'])
+            for x in range(len(sc_reports['response']['usable'])):
+                #print(report_name)
+                #print(sc_reports['response']['usable'][x]['name'])
+                if report_name == sc_reports['response']['usable'][x]['name']:
+                    print("There is an existing report for", entry.title, "skipping.")
+                    report_id = sc_reports['response']['usable'][x]['id']
+                    skip_report = True
+                    break
+            if skip_report is False:
                 report_id = gen_report(entry, entry_description, cve_s)
-                print("Created a report for", entry.title)
-            if alert_request is True and report_request is False:
-                gen_alert(0, query_id, entry)
-                #print("Created an email alert for", entry.title)
-            elif alert_request is True:
-                gen_alert(report_id, query_id, entry)
-                print("Created an alert for", entry.title)
+                print("Created an report for", entry.title)
 
+        if alert_request is True: # and report_request is False:
+            alert_name = feed + ": " + entry.title
+            skip_alert = False
+            for x in range(len(sc_alerts['usable'])):
+                if alert_name == sc_alerts['usable'][x]['name']:
+                    print("There is an existing alert for", alert_name, "skipping.")
+                    skip_alert = True
+                    break
+            if skip_alert is False:
+                gen_alert(report_id, query_id, entry, alert_name)
+            
 # Generate a canned t.sc report about the entry
 def gen_report(entry, entry_description, cve_s):
-    # Set some variables for parsing
     Entry_Title = entry.title
     Entry_URL = "For more information, please see the full page at " + entry.link
     Entry_Summary = entry_description
@@ -191,12 +207,13 @@ def gen_report(entry, entry_description, cve_s):
 
 
 # Generate an alert (requires a query and report to be created)
-def gen_alert(report_id, query_id, entry):
-    alert_name = feed + ": " + entry.title
+def gen_alert(report_id, query_id, entry, alert_name):
+    #alert_name = feed + ": " + entry.title
     alert_description = "For more information, please see the full page at " + entry.link
     alert_schedule = {"start":"TZID=America/New_York:20200622T070000","repeatRule":"FREQ=WEEKLY;INTERVAL=1;BYDAY=MO","type":"ical","enabled":"true"}
     if report_request is True: 
         sc.alerts.create(query={"id":query_id}, schedule=alert_schedule, data_type="vuln", name=alert_name, description=alert_description, trigger=('sumip','>=','1'), always_exec_on_trigger=True, action=[{'type': 'report','report':{'id': report_id}}])
+        print("Created an reporting alert for", entry.title)
     elif report_request is False and len(email_list) >= 5:
         #email_s = ','.join(email_list)
         sc.alerts.create(query={"id":query_id}, schedule=alert_schedule, data_type="vuln", name=alert_name, description=alert_description, trigger=('sumip','>=','1'), always_exec_on_trigger=True, action=[{'type': 'email','subject': alert_name, 'message': alert_description, 'addresses': email_list, 'includeResults': 'true'}])
@@ -292,8 +309,14 @@ for current_argument, current_value in arguments:
 # Based on the data provided, decide what to do
 if len(feed_URL) >= 10:
     sc = tsc_login()
+    sc_queries = sc.queries.list()
     if asset_request is True:
-        get_tsc_assets(sc)
+        sc_assets = sc.asset_lists.list()
+    if report_request is True:
+        sc_reports = sc.get('reportDefinition').text
+        sc_reports = json.loads(sc_reports)
+    if alert_request is True:
+        sc_alerts = sc.alerts.list()
     query_populate()
 else:
     print("Please specify a feed or --help")
