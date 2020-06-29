@@ -2,7 +2,7 @@
 
 VulnFeed 2 Tenb is a way to parse vulnerability data from Cyber Advisory Feeds into [Tenable.sc](https://www.tenable.com/products/tenable-sc).
 
-Integrate Tenable.sc with any of the supported Cyber Advisory Organizational feeds (US-CERT, MS-ISAC, CIS, CERT, etc) to automatically pull in advisory alerts, rather than manually copying/pasting them in. If the advisory contains a CVE, a query will be created within Tenable.sc with the name of the advisory (ex: Multiple Vulnerabilities in Google Chrome) that can seen, prioritized, and reported on by the Tenable user.  Assets, reports and alerts can also be created automatically.
+Integrate [Tenable.sc](https://www.tenable.com/products/tenable-sc) with any of the supported Cyber Advisory Organizational feeds (US-CERT, MS-ISAC, CIS, CERT, etc) to automatically pull in advisory alerts, rather than manually copying/pasting them in. If the advisory contains a CVE, a query will be created within Tenable.sc with the name of the advisory (ex: Multiple Vulnerabilities in Google Chrome) that can seen, prioritized, and reported on by the Tenable user.  Assets, reports and alerts can also be created automatically.
 
 **This is not supported by Tenable.**
 
@@ -40,11 +40,12 @@ SC_PORT=8443
 #### Configuration Notes:
 * SC_ADDRESS can be an IP or hostname.
 * SC_PORT is optional; defaults to 443.
-* The user who's API keys you select should be a part of the same primary group as the user who will use the queries, though queries can be shared to other groups. 
+* The user who's API keys you select should be a part of the same primary group as the user who will use the objects created, though objects can be shared to other groups. 
 * The user must be able to create alerts, if the `--alert` flag is used, otherwise no specific user role is needed for this user, as any user can create queries, assets, and reports or view plugin attribute data.
+* If desired to be used in multiple organizations within one [Tenable.sc](https://www.tenable.com/products/tenable-sc) console, run the script multiple times, specifiying different API keys for a user in each organization.
 
 ## Requirements
-* T.sc 5.13 or higher is required for [API key usage](https://docs.tenable.com/tenablesc/Content/GenerateAPIKey.htm)
+* [Tenable.sc](https://www.tenable.com/products/tenable-sc) 5.13 or higher is required for [API key usage](https://docs.tenable.com/tenablesc/Content/GenerateAPIKey.htm)
 * Docker; though technically you can run the script standalone (not supported).
 * Internet access for the container to access the RSS feed of the cyber threat feed you're grabbing
 * Network access to your T.sc instance over the UI/API interface (default is TCP 443)
@@ -53,8 +54,7 @@ SC_PORT=8443
 
 Run the container, passing your .env file to the container and specify the feed you want to use, plus any additional content generation.
 
-Flags on the script are:
-
+### Flags
  - `--feed`
 	 - Generates a query based on the CVEs noted in the feed entry. 
 	 - See the supported feeds below. 
@@ -64,7 +64,6 @@ Flags on the script are:
         * [ICS-CERT](https://www.us-cert.gov/ics/advisories)   
         * [CERT](https://www.kb.cert.org/vuls/)   
         * [ACSC](https://www.cyber.gov.au/threats)
-
 	 - Takes 1 string argument; required.  
  -  `--asset`
 	 - Creates a dynamic asset in Tenable.sc with the CVEs noted in the feed entry.
@@ -82,9 +81,9 @@ Flags on the script are:
 	 - If specified without either the `--report` or `--alert` flag, this has no impact.
 	 - Multiple emails can be comma separated and encased in quotes.
 	 - Takes 1 string argument, optional.
-
+	 
 ```
-$ docker run --env-file .env vulnfeed_2_tenb --feed us-cert
+$ docker run --env-file .env tecnobabble/vulnfeed_2_tenb:latest --feed us-cert
 
 Created a query for AA20-133A: Top 10 Routinely Exploited Vulnerabilities
 Created a query for AA20-126A: APT Groups Target Healthcare and Essential Services
@@ -99,6 +98,24 @@ There is an existing query for AA20-020A: Critical Vulnerability in Citrix Appli
 ```
 ![example vulnfeed_output](https://res.cloudinary.com/salted-security/image/upload/v1590183891/vulnfeed_output_kj9bqt.png)
 
+### Custom Reporting Templates
+A default report template is included with the tool. If you want to specify a custom report PDF template, use [Docker Volumes](https://docs.docker.com/storage/volumes/) to specify the `templates/custom_sc_report.xml` file.  NOTE: You must specify the `--report` flag to use custom reporting templates. 
+>`$ docker run -v ${PWD}/custom_template.xml:templates/custom_sc_report.xml --env-file .env tecnobabble/vulnfeed_2_tenb:latest --feed us-cert --reports`
+
+Where *custom_template.xml* is the filename of an exported PDF template from [Tenable.sc](https://www.tenable.com/products/tenable-sc) that's on the host running Docker.
+
+You may use the following variables when generting reports to use dynamic content from the Vulnerability Feed entry.  As an example, please see the template included at `templates/sc_template.xml`
+ - **{{ Feed }}**
+     - Name of the feed being called, in uppercase. Ex: US-CERT
+ - **{{ Entry_Title }}**
+     - Title of the feed entry
+ - **{{ Entry_ShortDesc }}**
+     - The following text: 
+         For more information, please see the full page at *{url_to_full_entry_page}*
+ - **{{ Entry_Summary }}**
+     - The first 500 characters of the entry description.
+ - **CVE-1900-0000**
+     - This will serve as a placeholder for any CVEs listed in each feed entry. 
 
 ### Suggested operations
 * Run the script on a scheduled basis; daily is likely frequently enough. The script checks for and should not create duplicates.

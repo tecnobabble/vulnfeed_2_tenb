@@ -119,20 +119,24 @@ def query_populate():#input_url, feed_source, sc, email_list):
         if report_request is True:
             entry_description = entry_parse(entry.summary)
             cve_s = ', '.join(cves)
-            report_name = feed + ": " + entry.title
+            #report_name = feed + ": " + entry.title
             skip_report = False
+            
+            # Make the Report Name usable (replace variables)
+            report_name = str(template_report_name).replace("{{ Feed }}", feed).replace("{{ Entry_Title }}", entry.title) 
+
             #print(sc_reports['response'])
             for x in range(len(sc_reports['response']['usable'])):
                 #print(report_name)
                 #print(sc_reports['response']['usable'][x]['name'])
                 if report_name == sc_reports['response']['usable'][x]['name']:
-                    print("There is an existing report for", entry.title, "skipping.")
+                    print("There is an existing report for", report_name, "skipping.")
                     report_id = sc_reports['response']['usable'][x]['id']
                     skip_report = True
                     break
             if skip_report is False:
                 report_id = gen_report(entry, entry_description, cve_s)
-                print("Created an report for", entry.title)
+                print("Created an report for", report_name)
 
         if alert_request is True: # and report_request is False:
             alert_name = feed + ": " + entry.title
@@ -148,15 +152,30 @@ def query_populate():#input_url, feed_source, sc, email_list):
 # Generate a canned t.sc report about the entry
 def gen_report(entry, entry_description, cve_s):
     Entry_Title = entry.title
-    Entry_URL = "For more information, please see the full page at " + entry.link
+    Entry_ShortDesc = "For more information, please see the full page at " + entry.link
     Entry_Summary = entry_description
     cve_list = cve_s
+
+    '''
+    # Check to see if a custom template is provided
+    if os.path.isfile('./templates/custom_sc_report.xml'):
+        sc_template_path = './templates/custom_sc_report.xml'
+    else:
+        sc_template_path = "./templates/sc_template.xml"
     
-    # Let's read the base sc template and pull out the report definition
-    sc_template_file = open("templates/sc_template.xml", "r")
+    # Let's read the base sc template and pull out the report definition and other info
+    sc_template_file = open(sc_template_path, "r")
     template_contents = sc_template_file.read()
     template_def = re.search("<definition>(.+)</definition>", str(template_contents))
+    template_report_name = re.search("<name>(.+)</name>", str(template_contents))
+    #template_report_desc = re.search("<description>(.+)</description>", str(template_contents))
     sc_template_file.close()
+
+    # replace def with tag to be substituted later
+    new_sc_template = re.sub("<definition>(.+)</definition>", "<definition>{{ report_output }}</definition>", str(template_contents))
+    sc_working_template_file = open('./templates/sc_working_template.txt', "w")
+    sc_working_template_file.write(new_sc_template)
+    sc_working_template_file.close()
 
     # Let's put the encoded report def into a format we can work with
     template_def = base64.b64decode(template_def.group(1))
@@ -166,24 +185,25 @@ def gen_report(entry, entry_description, cve_s):
     template_def = str(template_def).replace("CVE-1990-0000", "{{ cve_list }}")
 
     # Write this definition template to a file
-    template_def_file = open("templates/definition.txt", "w")
+    template_def_file = open("./templates/definition.txt", "w")
     template_def_file.write(template_def)
     template_def_file.close()
+    '''
 
     # Load the definition template as a jinja template
     env = Environment(loader = FileSystemLoader('./templates'), trim_blocks=True, lstrip_blocks=True)
     template_def = env.get_template('definition.txt')
 
     #Render the definition template with data and print the output
-    report_raw = template_def.render(Entry_Title=Entry_Title, Entry_URL=Entry_URL, Entry_Summary=Entry_Summary, cve_list=cve_list)
+    report_raw = template_def.render(Entry_Title=Entry_Title, Entry_ShortDesc=Entry_ShortDesc, Entry_Summary=Entry_Summary, cve_list=cve_list)
 
     # Convert the now rendered template back into a format that tsc can understand (base64 encoded PHP serilaized string)
     report_raw = ast.literal_eval(report_raw)
     report_output = base64.b64encode(serialize(report_raw))
 
     # Render the full XML report template and write the output to a file that we'll then upload to tsc.
-    report = env.get_template('report.txt')
-    report_xml = report.render(Entry_Title=Entry_Title, Feed=feed, Entry_URL=Entry_URL, report_output=report_output.decode('utf8'))
+    report = env.get_template('sc_working_template.txt')
+    report_xml = report.render(Entry_Title=Entry_Title, Feed=feed, Entry_ShortDesc=Entry_ShortDesc, report_output=report_output.decode('utf8'))
     report_name = Entry_Title.replace(" ","").replace(":","-")[:15] + "_report.xml"
     generated_tsc_report_file = open(report_name, "w")
     generated_tsc_report_file.write(report_xml)
@@ -315,6 +335,38 @@ if len(feed_URL) >= 10:
     if report_request is True:
         sc_reports = sc.get('reportDefinition').text
         sc_reports = json.loads(sc_reports)
+        # Check to see if a custom template is provided
+        if os.path.isfile('./templates/custom_sc_report.xml'):
+            sc_template_path = './templates/custom_sc_report.xml'
+        else:
+            sc_template_path = "./templates/sc_template.xml"
+
+        # Let's read the base sc template and pull out the report definition and other info
+        sc_template_file = open(sc_template_path, "r")
+        template_contents = sc_template_file.read()
+        template_def = re.search("<definition>(.+)</definition>", str(template_contents))
+        template_report_name = re.search("<name>(.+)</name>", str(template_contents)).group(1)
+        #template_report_desc = re.search("<description>(.+)</description>", str(template_contents))
+        sc_template_file.close()
+
+        # replace def with tag to be substituted later
+        new_sc_template = re.sub("<definition>(.+)</definition>", "<definition>{{ report_output }}</definition>", str(template_contents))
+        sc_working_template_file = open('./templates/sc_working_template.txt', "w")
+        sc_working_template_file.write(new_sc_template)
+        sc_working_template_file.close()
+
+        # Let's put the encoded report def into a format we can work with
+        template_def = base64.b64decode(template_def.group(1))
+        template_def = unserialize(template_def, decode_strings=True)
+
+        # Replace the CVE placeholder with something we can swap out later
+        template_def = str(template_def).replace("CVE-1990-0000", "{{ cve_list }}")
+
+        # Write this definition template to a file
+        template_def_file = open("./templates/definition.txt", "w")
+        template_def_file.write(template_def)
+        template_def_file.close()
+
     if alert_request is True:
         sc_alerts = sc.alerts.list()
     query_populate()
