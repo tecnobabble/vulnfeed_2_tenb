@@ -100,7 +100,7 @@ There is an existing query for AA20-020A: Critical Vulnerability in Citrix Appli
 
 ### Custom Reporting Templates
 A default report template is included with the tool. If you want to specify a custom report PDF template, use [Docker Volumes](https://docs.docker.com/storage/volumes/) to specify the `templates/custom_sc_report.xml` file.  NOTE: You must specify the `--report` flag to use custom reporting templates. 
->`$ docker run -v ${PWD}/custom_template.xml:templates/custom_sc_report.xml --env-file .env tecnobabble/vulnfeed_2_tenb:latest --feed us-cert --reports`
+>`$ docker run -v ${PWD}/custom_template.xml:templates/custom_sc_report.xml --env-file .env tecnobabble/vulnfeed_2_tenb:latest --feed us-cert --report`
 
 Where *custom_template.xml* is the filename of an exported PDF template from [Tenable.sc](https://www.tenable.com/products/tenable-sc) that's on the host running Docker.
 
