@@ -114,7 +114,7 @@ You may use the following variables when generting reports to use dynamic conten
          For more information, please see the full page at *{url_to_full_entry_page}*
  - **{{ Entry_Summary }}**
      - The first 500 characters of the entry description.
- - **CVE-1900-0000**
+ - **CVE-1990-0000**
      - This will serve as a placeholder for any CVEs listed in each feed entry. 
 
 ### Suggested operations

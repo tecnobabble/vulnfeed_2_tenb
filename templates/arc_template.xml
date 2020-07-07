@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<arcTemplate>
+	<scVersion>5.14.1</scVersion>
+	<name>{{ Feed }} Advisory Alerts</name>
+	<description></description>
+	<focusFilters>YTowOnt9</focusFilters>
+	<policyStatements>
+		<policyStatement>
+			<label>{{ Entry_Title }}</label>
+			<displayType>ratio</displayType>
+			<queryType>vuln</queryType>
+			<definition>YTo2OntzOjExOiJiYXNlRmlsdGVycyI7YTowOnt9czoxNjoiY29tcGxpYW50RmlsdGVycyI7YToxOntpOjA7YTo1OntzOjI6ImlkIjtzOjU6ImN2ZUlEIjtzOjEwOiJmaWx0ZXJOYW1lIjtzOjU6ImN2ZUlEIjtzOjg6Im9wZXJhdG9yIjtzOjE6Ij0iO3M6MTI6ImlzUHJlZGVmaW5lZCI7YjoxO3M6NToidmFsdWUiO3M6MTM6IkNWRS0xOTkwLTAwMDAiO319czoxNjoiZHJpbGxkb3duRmlsdGVycyI7YToxOntpOjA7YTo1OntzOjI6ImlkIjtzOjU6ImN2ZUlEIjtzOjEwOiJmaWx0ZXJOYW1lIjtzOjU6ImN2ZUlEIjtzOjg6Im9wZXJhdG9yIjtzOjE6Ij0iO3M6MTI6ImlzUHJlZGVmaW5lZCI7YjoxO3M6NToidmFsdWUiO3M6MTM6IkNWRS0xOTkwLTAwMDAiO319czoxNToiY29uZGl0aW9uYWxOYW1lIjtzOjU6Imhvc3RzIjtzOjE5OiJjb25kaXRpb25hbE9wZXJhdG9yIjtzOjI6Ik5vIjtzOjE2OiJjb25kaXRpb25hbFZhbHVlIjtzOjA6IiI7fQ==</definition>
+		</policyStatement>
+	</policyStatements>
+	<schedule>FREQ=DAILY;INTERVAL=1</schedule>
+</arcTemplate>

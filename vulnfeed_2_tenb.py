@@ -30,7 +30,7 @@ email_list = ""
 full_cmd_arguments = sys.argv
 argument_list = full_cmd_arguments[1:]
 short_options = "hfre:"
-long_options = ["help", "feed=", "report", "alert", "email=", "asset"]
+long_options = ["help", "feed=", "report", "alert", "email=", "asset", "arc"]
 
 try:
     arguments, values = getopt.getopt(argument_list, short_options, long_options)
@@ -148,47 +148,99 @@ def query_populate():#input_url, feed_source, sc, email_list):
                     break
             if skip_alert is False:
                 gen_alert(report_id, query_id, entry, alert_name)
-            
+    
+        if arc_request is True:
+            cve_s = ', '.join(cves)
+            skip_arc = False
+            skip_arc_entry = False
+            for x in range(len(sc_arcs['response']['usable'])):
+                #print(sc_arcs['response']['usable'][x]['name'])
+                if arc_name == sc_arcs['response']['usable'][x]['name']:
+                    skip_arc = True
+                    #arc_id = sc_arcs['response']['usable'][x]['id']
+                    for y in range(len(sc_arcs['response']['usable'][x]['policyStatements'])):
+                        if entry.title == sc_arcs['response']['usable'][x]['policyStatements'][y]['label']:
+                            print("There is an existing ARC entry for", entry.title, "skipping")
+                            skip_arc_entry = True
+                            break
+            if skip_arc is False:
+                gen_arc(entry, cve_s)
+                print("Created an ARC for", arc_name)
+            if skip_arc_entry is False:
+                arc_id = sc_arcs['response']['usable'][x]['id']
+                gen_arc_policy(entry, cve_s, arc_id)
+                print("Created an ARC Policy Statement for", entry.title, "in", arc_name)
+
+# Generate an arc for the first time
+def gen_arc(entry, cve_s):
+    Entry_Title = entry.title
+    #Entry_ShortDesc = "For more information, please see the full page at " + entry.link
+    #Entry_Summary = entry_description
+    cve_list = cve_s
+
+    # Load the definition template as a jinja template
+    env = Environment(loader = FileSystemLoader('./templates'), trim_blocks=True, lstrip_blocks=True)
+    arc_template_def = env.get_template('arc_definition.txt')
+
+    #Render the definition template with data and print the output
+    arc_raw = arc_template_def.render(cve_list=cve_list)
+
+    # Convert the now rendered template back into a format that tsc can understand (base64 encoded PHP serilaized string)
+    arc_raw = ast.literal_eval(arc_raw)
+    arc_def_output = base64.b64encode(serialize(arc_raw))
+
+    # Render the full XML report template and write the output to a file that we'll then upload to tsc.
+    arc = env.get_template('arc_working_template.txt')
+    arc_xml = arc.render(Entry_Title=Entry_Title, Feed=feed, arc_output=arc_def_output.decode('utf8'))
+    
+    arc_name = Entry_Title.replace(" ","").replace(":","-")[:15] + "_arc.xml"
+    generated_tsc_arc_file = open(arc_name, "w")
+    generated_tsc_arc_file.write(arc_xml)
+    generated_tsc_arc_file.close()
+
+    # Upload the report to T.sc
+    generated_tsc_arc_file = open(arc_name, "r")
+    tsc_arc_file = sc.files.upload(generated_tsc_arc_file)
+    arc_data = { "name":"","filename":str(tsc_arc_file), "order":"0" }
+    arc_post = sc.post('arc/import', json=arc_data).text
+    arc_post = json.loads(arc_post)
+    arc_id = arc_post['response']['id']
+    generated_tsc_arc_file.close()
+
+    #Grab a new copy of the ARCs in T.sc, cause we just created a new one
+    global sc_arcs
+    sc_arcs = sc.get('arc').text
+    sc_arcs = json.loads(sc_arcs)
+
+# Create a new arc policy statement
+def gen_arc_policy(entry, cve_s, arc_id):
+    Entry_Title = entry.title
+    cve_list = cve_s
+    arc_id = "arc/" + arc_id
+
+    sc_arc_feed = sc.get(arc_id).text
+    sc_arcs_feed = json.loads(sc_arc_feed)
+
+    sc_arc_policies = sc_arcs_feed['response']['policyStatements']
+
+    env = Environment(loader = FileSystemLoader('./templates'), trim_blocks=True, lstrip_blocks=True)
+    arc_template_def = env.get_template('arc_policy.txt')
+
+    #Render the definition template with data and print the output
+    arc_raw = arc_template_def.render(cve_list=cve_list, Entry_Title=Entry_Title)
+    arc_raw = json.loads(arc_raw)
+    sc_arc_policies.append(arc_raw)
+    sc_arc_policies_post = { 'policyStatements': sc_arc_policies, 'focusFilters': [], "schedule":{"start":"TZID=UTC:20200707T193300","repeatRule":"FREQ=DAILY;INTERVAL=1","type":"ical","enabled":"true"} }
+    arc_patch = sc.patch(arc_id, json=sc_arc_policies_post).text
+    arc_patch = json.loads(arc_patch)
+
+
 # Generate a canned t.sc report about the entry
 def gen_report(entry, entry_description, cve_s):
     Entry_Title = entry.title
     Entry_ShortDesc = "For more information, please see the full page at " + entry.link
     Entry_Summary = entry_description
     cve_list = cve_s
-
-    '''
-    # Check to see if a custom template is provided
-    if os.path.isfile('./templates/custom_sc_report.xml'):
-        sc_template_path = './templates/custom_sc_report.xml'
-    else:
-        sc_template_path = "./templates/sc_template.xml"
-    
-    # Let's read the base sc template and pull out the report definition and other info
-    sc_template_file = open(sc_template_path, "r")
-    template_contents = sc_template_file.read()
-    template_def = re.search("<definition>(.+)</definition>", str(template_contents))
-    template_report_name = re.search("<name>(.+)</name>", str(template_contents))
-    #template_report_desc = re.search("<description>(.+)</description>", str(template_contents))
-    sc_template_file.close()
-
-    # replace def with tag to be substituted later
-    new_sc_template = re.sub("<definition>(.+)</definition>", "<definition>{{ report_output }}</definition>", str(template_contents))
-    sc_working_template_file = open('./templates/sc_working_template.txt', "w")
-    sc_working_template_file.write(new_sc_template)
-    sc_working_template_file.close()
-
-    # Let's put the encoded report def into a format we can work with
-    template_def = base64.b64decode(template_def.group(1))
-    template_def = unserialize(template_def, decode_strings=True)
-
-    # Replace the CVE placeholder with something we can swap out later
-    template_def = str(template_def).replace("CVE-1990-0000", "{{ cve_list }}")
-
-    # Write this definition template to a file
-    template_def_file = open("./templates/definition.txt", "w")
-    template_def_file.write(template_def)
-    template_def_file.close()
-    '''
 
     # Load the definition template as a jinja template
     env = Environment(loader = FileSystemLoader('./templates'), trim_blocks=True, lstrip_blocks=True)
@@ -268,7 +320,7 @@ def cert_search(entry):
 
 # ICS CERT doesn't publish enough info in their feed, we need to grab and parse the actual articles.
 def ics_cert_search(entry):
-    url = re.search("(https://www.us-cert.gov/ics/advisories/icsa-[\d-]{5,10})", str(entry))
+    url = re.search("(https://us-cert.cisa.gov/ics/advisories/[icsam]{4,5}-[\d\-]{5,20})", str(entry))
     r = requests.get(url.group(0))
     return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
 
@@ -306,6 +358,8 @@ for current_argument, current_value in arguments:
         report_request = True
     if current_argument in ("--alert"):
         alert_request = True
+    if current_argument in ("--arc"):
+        arc_request = True
     if current_argument in ("--asset"):
         asset_request = True
     if current_argument in ("-f", "--feed"):
@@ -319,9 +373,11 @@ for current_argument, current_value in arguments:
         elif current_value == "cert":
             feed_URL = "https://www.kb.cert.org/vuls/atomfeed"
         elif current_value == "ics-cert":
-            feed_URL = "https://www.us-cert.gov/ics/advisories/advisories.xml"
+            feed_URL = "https://us-cert.cisa.gov/ics/advisories/advisories.xml"
         elif current_value == "acsc":
             feed_URL = "https://www.cyber.gov.au/rssfeed/2"
+        elif current_value == "tenable":
+            feed_URL = "https://www.tenable.com/blog/cyber-exposure-alerts/feed"
         else:
             print("Input a valid feed")
             exit()
@@ -366,6 +422,40 @@ if len(feed_URL) >= 10:
         template_def_file = open("./templates/definition.txt", "w")
         template_def_file.write(template_def)
         template_def_file.close()
+    if arc_request is True:
+        sc_arcs = sc.get('arc').text
+        sc_arcs = json.loads(sc_arcs)
+        arc_name = feed + " Advisory Alerts"
+        if os.path.isfile('./templates/custom_arc_report.xml'):
+            arc_template_path = './templates/custom_arc_report.xml'
+        else:
+            arc_template_path = "./templates/arc_template.xml"
+
+        # Let's read the base sc template and pull out the report definition and other info
+        arc_template_file = open(arc_template_path, "r")
+        arc_template_contents = arc_template_file.read()
+        arc_template_def = re.search("<definition>(.+)</definition>", str(arc_template_contents))
+        arc_template_name = re.search("<name>(.+)</name>", str(arc_template_contents)).group(1)
+        arc_template_file.close()
+
+        # replace def with tag to be substituted later
+        new_arc_template = re.sub("<definition>(.+)</definition>", "<definition>{{ arc_output }}</definition>", str(arc_template_contents))
+        arc_policy_def = re.search("(<policyStatement>.+</policyStatement>)", str(new_arc_template))
+        arc_working_template_file = open('./templates/arc_working_template.txt', "w")
+        arc_working_template_file.write(new_arc_template)
+        arc_working_template_file.close()
+
+        # Let's put the encoded report def into a format we can work with
+        arc_template_def = base64.b64decode(arc_template_def.group(1))
+        arc_template_def = unserialize(arc_template_def, decode_strings=True)
+
+        # Replace the CVE placeholder with something we can swap out later
+        arc_template_def = str(arc_template_def).replace("CVE-1990-0000", "{{ cve_list }}")
+
+        # Write this definition template to a file
+        arc_template_def_file = open("./templates/arc_definition.txt", "w")
+        arc_template_def_file.write(arc_template_def)
+        arc_template_def_file.close()
 
     if alert_request is True:
         sc_alerts = sc.alerts.list()
