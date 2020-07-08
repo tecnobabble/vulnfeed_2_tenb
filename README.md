@@ -1,3 +1,4 @@
+
 # VulnFeed 2 Tenb
 
 VulnFeed 2 Tenb is a way to parse vulnerability data from Cyber Advisory Feeds into [Tenable.sc](https://www.tenable.com/products/tenable-sc).
@@ -64,6 +65,7 @@ Run the container, passing your .env file to the container and specify the feed 
         * [ICS-CERT](https://www.us-cert.gov/ics/advisories)   
         * [CERT](https://www.kb.cert.org/vuls/)   
         * [ACSC](https://www.cyber.gov.au/threats)
+        * [TENABLE](https://www.tenable.com/blog/cyber-exposure-alerts)
 	 - Takes 1 string argument; required.  
  -  `--asset`
 	 - Creates a dynamic asset in Tenable.sc with the CVEs noted in the feed entry.
@@ -81,6 +83,9 @@ Run the container, passing your .env file to the container and specify the feed 
 	 - If specified without either the `--report` or `--alert` flag, this has no impact.
 	 - Multiple emails can be comma separated and encased in quotes.
 	 - Takes 1 string argument, optional.
+ - `--arc`
+	 - Creates an Assurance Report Card for the Feed and a Policy Statement for each feed entry.
+	 - No arguments, optional
 	 
 ```
 $ docker run --env-file .env tecnobabble/vulnfeed_2_tenb:latest --feed us-cert
