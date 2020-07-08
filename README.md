@@ -64,7 +64,6 @@ Run the container, passing your .env file to the container and specify the feed 
         * [US-CERT](https://www.us-cert.gov/ncas/alerts)  
         * [ICS-CERT](https://www.us-cert.gov/ics/advisories)   
         * [CERT](https://www.kb.cert.org/vuls/)   
-        * [ACSC](https://www.cyber.gov.au/threats)
         * [TENABLE](https://www.tenable.com/blog/cyber-exposure-alerts)
 	 - Takes 1 string argument; required.  
  -  `--asset`

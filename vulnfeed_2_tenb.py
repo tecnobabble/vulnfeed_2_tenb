@@ -154,28 +154,25 @@ def query_populate():#input_url, feed_source, sc, email_list):
             skip_arc = False
             skip_arc_entry = False
             for x in range(len(sc_arcs['response']['usable'])):
-                #print(sc_arcs['response']['usable'][x]['name'])
                 if arc_name == sc_arcs['response']['usable'][x]['name']:
                     skip_arc = True
-                    #arc_id = sc_arcs['response']['usable'][x]['id']
                     for y in range(len(sc_arcs['response']['usable'][x]['policyStatements'])):
                         if entry.title == sc_arcs['response']['usable'][x]['policyStatements'][y]['label']:
                             print("There is an existing ARC entry for", entry.title, "skipping")
                             skip_arc_entry = True
                             break
+                        else:
+                            arc_id = sc_arcs['response']['usable'][x]['id']
             if skip_arc is False:
                 gen_arc(entry, cve_s)
                 print("Created an ARC for", arc_name)
-            if skip_arc_entry is False:
-                arc_id = sc_arcs['response']['usable'][x]['id']
+            if skip_arc_entry is False and skip_arc is True:
                 gen_arc_policy(entry, cve_s, arc_id)
                 print("Created an ARC Policy Statement for", entry.title, "in", arc_name)
 
 # Generate an arc for the first time
 def gen_arc(entry, cve_s):
     Entry_Title = entry.title
-    #Entry_ShortDesc = "For more information, please see the full page at " + entry.link
-    #Entry_Summary = entry_description
     cve_list = cve_s
 
     # Load the definition template as a jinja template
@@ -204,6 +201,7 @@ def gen_arc(entry, cve_s):
     arc_data = { "name":"","filename":str(tsc_arc_file), "order":"0" }
     arc_post = sc.post('arc/import', json=arc_data).text
     arc_post = json.loads(arc_post)
+    global arc_id
     arc_id = arc_post['response']['id']
     generated_tsc_arc_file.close()
 
@@ -211,6 +209,7 @@ def gen_arc(entry, cve_s):
     global sc_arcs
     sc_arcs = sc.get('arc').text
     sc_arcs = json.loads(sc_arcs)
+
 
 # Create a new arc policy statement
 def gen_arc_policy(entry, cve_s, arc_id):
@@ -325,10 +324,11 @@ def ics_cert_search(entry):
     return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
 
 # ACSC doesn't publish enough info in their feed, we need to grab and parse the actual articles.
-def acsc_search(entry):
-    url = re.search("(https://www.cyber.gov.au/threats/.+)", str(entry['link']))
-    r = requests.get(url.group(0))
-    return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
+# Commenting out; disabling the ACSC feed because they removed their RSS feed :( 7-8-20, v1.1.1
+#def acsc_search(entry):
+#    url = re.search("(https://www.cyber.gov.au/threats/.+)", str(entry['link']))
+#    r = requests.get(url.group(0))
+#    return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
 
 # Define a function for validating an email
 def email_validate(email):
@@ -374,8 +374,8 @@ for current_argument, current_value in arguments:
             feed_URL = "https://www.kb.cert.org/vuls/atomfeed"
         elif current_value == "ics-cert":
             feed_URL = "https://us-cert.cisa.gov/ics/advisories/advisories.xml"
-        elif current_value == "acsc":
-            feed_URL = "https://www.cyber.gov.au/rssfeed/2"
+        #elif current_value == "acsc":
+        #    feed_URL = "https://www.cyber.gov.au/rssfeed/2"
         elif current_value == "tenable":
             feed_URL = "https://www.tenable.com/blog/cyber-exposure-alerts/feed"
         else:
