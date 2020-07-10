@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 import feedparser
 import re
-from tenable.sc import TenableSC
+from tenable.sc import TenableSC, ConnectionError
 import os
-from decouple import config
+from decouple import config, UndefinedValueError
 import getopt, sys
 import requests
 from jinja2 import Environment, FileSystemLoader
@@ -13,12 +13,25 @@ import ast
 from bs4 import BeautifulSoup
 import html
 import json
+import logging
+
+#logging.basicConfig(level=logging.CRITICAL)
 
 # Set some variables that need setting (pulled from .env file passed to container or seen locally in the same folder as script)
-sc_address = config('SC_ADDRESS')
-sc_access_key = config('SC_ACCESS_KEY')
-sc_secret_key = config('SC_SECRET_KEY')
-sc_port = config('SC_PORT', default=443)
+try:
+    sc_address = config('SC_ADDRESS')
+    sc_access_key = config('SC_ACCESS_KEY')
+    sc_secret_key = config('SC_SECRET_KEY')
+    sc_port = config('SC_PORT', default=443)
+    debug_set = config('DEBUG', cast=bool, default=False)
+except UndefinedValueError as err:
+    print("Please review the documentation and define the required connection details in an environment file.")
+    print()
+    raise SystemExit(err)
+if debug_set is True:
+    logging.basicConfig(level=logging.DEBUG)
+else:
+    logging.basicConfig(level=logging.CRITICAL)
 
 report_request = False
 alert_request = False
@@ -45,8 +58,14 @@ except getopt.error as err:
 
 # Login to Tenable.sc
 def tsc_login():
-    sc = TenableSC(sc_address, port=sc_port)
-    sc.login(access_key=sc_access_key, secret_key=sc_secret_key)
+    try:
+        sc = TenableSC(sc_address, port=sc_port)
+        sc.login(access_key=sc_access_key, secret_key=sc_secret_key)
+    except NameError:
+        print("Please verify connection details.")
+        exit()
+    except (ConnectionError) as err:
+        raise SystemExit(err)
     return sc
 
 # Pull all existing queries from T.sc that this API user can see.
