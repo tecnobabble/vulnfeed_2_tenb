@@ -28,6 +28,7 @@ except UndefinedValueError as err:
     print("Please review the documentation and define the required connection details in an environment file.")
     print()
     raise SystemExit(err)
+
 if debug_set is True:
     logging.basicConfig(level=logging.DEBUG)
 else:
@@ -68,13 +69,13 @@ def tsc_login():
         raise SystemExit(err)
     return sc
 
-# Pull all existing queries from T.sc that this API user can see.
-def get_tsc_queries(sc):
-    sc_queries = sc.queries.list()
+## Pull all existing queries from T.sc that this API user can see.
+#def get_tsc_queries(sc):
+#    sc_queries = sc.queries.list()
 
 # Pull all existing assets from T.sc that this API user can see.
-def get_tsc_assets(sc):
-    sc_assets = sc.asset_lists.list()
+#def get_tsc_assets(sc):
+#    sc_assets = sc.asset_lists.list()
 
 # Function to de-dupe CVE list.  Basically convert to a dictionary and back to a list.
 def de_dup_cve(x):
@@ -144,16 +145,12 @@ def query_populate():#input_url, feed_source, sc, email_list):
         if report_request is True:
             entry_description = entry_parse(entry.summary)
             cve_s = ', '.join(cves)
-            #report_name = feed + ": " + entry.title
             skip_report = False
             
             # Make the Report Name usable (replace variables)
             report_name = str(template_report_name).replace("{{ Feed }}", feed).replace("{{ Entry_Title }}", entry.title) 
 
-            #print(sc_reports['response'])
             for x in range(len(sc_reports['response']['usable'])):
-                #print(report_name)
-                #print(sc_reports['response']['usable'][x]['name'])
                 if report_name == sc_reports['response']['usable'][x]['name']:
                     print("There is an existing report for", report_name, "skipping.")
                     report_id = sc_reports['response']['usable'][x]['id']
@@ -304,14 +301,12 @@ def gen_report(entry, entry_description, cve_s):
 
 # Generate an alert (requires a query and report to be created)
 def gen_alert(report_id, query_id, entry, alert_name):
-    #alert_name = feed + ": " + entry.title
     alert_description = "For more information, please see the full page at " + entry.link
     alert_schedule = {"start":"TZID=America/New_York:20200622T070000","repeatRule":"FREQ=WEEKLY;INTERVAL=1;BYDAY=MO","type":"ical","enabled":"true"}
     if report_request is True: 
         sc.alerts.create(query={"id":query_id}, schedule=alert_schedule, data_type="vuln", name=alert_name, description=alert_description, trigger=('sumip','>=','1'), always_exec_on_trigger=True, action=[{'type': 'report','report':{'id': report_id}}])
         print("Created an reporting alert for", entry.title)
     elif report_request is False and len(email_list) >= 5:
-        #email_s = ','.join(email_list)
         sc.alerts.create(query={"id":query_id}, schedule=alert_schedule, data_type="vuln", name=alert_name, description=alert_description, trigger=('sumip','>=','1'), always_exec_on_trigger=True, action=[{'type': 'email','subject': alert_name, 'message': alert_description, 'addresses': email_list, 'includeResults': 'true'}])
         print("Created an email alert for", entry.title)
     else:
