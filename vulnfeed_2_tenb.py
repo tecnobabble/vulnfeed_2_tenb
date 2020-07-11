@@ -82,7 +82,13 @@ def de_dup_cve(x):
 
 # Main function to pull feeds and query tenable
 def query_populate():#input_url, feed_source, sc, email_list):
-    feed_details = feedparser.parse(feed_URL)
+    try:
+        feed_details = feedparser.parse(feed_URL)
+        if entry.feed.title:
+            pass
+    except (KeyError, AttributeError):
+        print("Something looks to be wrong with the", feed, "feed. Please verify connectivity.")
+        exit()
     for entry in feed_details.entries:
         advisory_cve = []
         # Search through the text of the advisory and pull out any CVEs
@@ -382,17 +388,16 @@ for current_argument, current_value in arguments:
     if current_argument in ("--asset"):
         asset_request = True
     if current_argument in ("-f", "--feed"):
-        #print (("Enabling special output mode (%s)") % (current_value))
         feed = current_value.upper()
         if current_value == "us-cert":
             feed_URL = "https://www.us-cert.gov/ncas/alerts.xml"
-            #query_populate('https://www.us-cert.gov/ncas/alerts.xml', current_value.upper())
         elif current_value == "ms-isac" or current_value == "cis":
             feed_URL = "https://www.cisecurity.org/feed/advisories"
         elif current_value == "cert":
             feed_URL = "https://www.kb.cert.org/vuls/atomfeed"
         elif current_value == "ics-cert":
             feed_URL = "https://us-cert.cisa.gov/ics/advisories/advisories.xml"
+        # ACSC stopped their feed :(
         #elif current_value == "acsc":
         #    feed_URL = "https://www.cyber.gov.au/rssfeed/2"
         elif current_value == "tenable":
