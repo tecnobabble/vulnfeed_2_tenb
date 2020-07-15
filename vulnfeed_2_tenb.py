@@ -37,6 +37,7 @@ else:
 report_request = False
 alert_request = False
 asset_request = False
+arc_request = False
 feed_URL = ""
 email_list = ""
 
@@ -85,7 +86,7 @@ def de_dup_cve(x):
 def query_populate():#input_url, feed_source, sc, email_list):
     try:
         feed_details = feedparser.parse(feed_URL)
-        if entry.feed.title:
+        if feed_details.feed.title:
             pass
     except (KeyError, AttributeError):
         print("Something looks to be wrong with the", feed, "feed. Please verify connectivity.")
