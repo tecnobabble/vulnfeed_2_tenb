@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 import feedparser
 import re
-from tenable.sc import TenableSC
+from tenable.sc import TenableSC, ConnectionError
 import os
-from decouple import config
+from decouple import config, UndefinedValueError
 import getopt, sys
 import requests
 from jinja2 import Environment, FileSystemLoader
@@ -13,16 +13,31 @@ import ast
 from bs4 import BeautifulSoup
 import html
 import json
+import logging
+
+#logging.basicConfig(level=logging.CRITICAL)
 
 # Set some variables that need setting (pulled from .env file passed to container or seen locally in the same folder as script)
-sc_address = config('SC_ADDRESS')
-sc_access_key = config('SC_ACCESS_KEY')
-sc_secret_key = config('SC_SECRET_KEY')
-sc_port = config('SC_PORT', default=443)
+try:
+    sc_address = config('SC_ADDRESS')
+    sc_access_key = config('SC_ACCESS_KEY')
+    sc_secret_key = config('SC_SECRET_KEY')
+    sc_port = config('SC_PORT', default=443)
+    debug_set = config('DEBUG', cast=bool, default=False)
+except UndefinedValueError as err:
+    print("Please review the documentation and define the required connection details in an environment file.")
+    print()
+    raise SystemExit(err)
+
+if debug_set is True:
+    logging.basicConfig(level=logging.DEBUG)
+else:
+    logging.basicConfig(level=logging.CRITICAL)
 
 report_request = False
 alert_request = False
 asset_request = False
+arc_request = False
 feed_URL = ""
 email_list = ""
 
@@ -45,17 +60,23 @@ except getopt.error as err:
 
 # Login to Tenable.sc
 def tsc_login():
-    sc = TenableSC(sc_address, port=sc_port)
-    sc.login(access_key=sc_access_key, secret_key=sc_secret_key)
+    try:
+        sc = TenableSC(sc_address, port=sc_port)
+        sc.login(access_key=sc_access_key, secret_key=sc_secret_key)
+    except NameError:
+        print("Please verify connection details.")
+        exit()
+    except (ConnectionError) as err:
+        raise SystemExit(err)
     return sc
 
-# Pull all existing queries from T.sc that this API user can see.
-def get_tsc_queries(sc):
-    sc_queries = sc.queries.list()
+## Pull all existing queries from T.sc that this API user can see.
+#def get_tsc_queries(sc):
+#    sc_queries = sc.queries.list()
 
 # Pull all existing assets from T.sc that this API user can see.
-def get_tsc_assets(sc):
-    sc_assets = sc.asset_lists.list()
+#def get_tsc_assets(sc):
+#    sc_assets = sc.asset_lists.list()
 
 # Function to de-dupe CVE list.  Basically convert to a dictionary and back to a list.
 def de_dup_cve(x):
@@ -63,7 +84,13 @@ def de_dup_cve(x):
 
 # Main function to pull feeds and query tenable
 def query_populate():#input_url, feed_source, sc, email_list):
-    feed_details = feedparser.parse(feed_URL)
+    try:
+        feed_details = feedparser.parse(feed_URL)
+        if feed_details.feed.title:
+            pass
+    except (KeyError, AttributeError):
+        print("Something looks to be wrong with the", feed, "feed. Please verify connectivity.")
+        exit()
     for entry in feed_details.entries:
         advisory_cve = []
         # Search through the text of the advisory and pull out any CVEs
@@ -119,16 +146,12 @@ def query_populate():#input_url, feed_source, sc, email_list):
         if report_request is True:
             entry_description = entry_parse(entry.summary)
             cve_s = ', '.join(cves)
-            #report_name = feed + ": " + entry.title
             skip_report = False
             
             # Make the Report Name usable (replace variables)
             report_name = str(template_report_name).replace("{{ Feed }}", feed).replace("{{ Entry_Title }}", entry.title) 
 
-            #print(sc_reports['response'])
             for x in range(len(sc_reports['response']['usable'])):
-                #print(report_name)
-                #print(sc_reports['response']['usable'][x]['name'])
                 if report_name == sc_reports['response']['usable'][x]['name']:
                     print("There is an existing report for", report_name, "skipping.")
                     report_id = sc_reports['response']['usable'][x]['id']
@@ -279,14 +302,12 @@ def gen_report(entry, entry_description, cve_s):
 
 # Generate an alert (requires a query and report to be created)
 def gen_alert(report_id, query_id, entry, alert_name):
-    #alert_name = feed + ": " + entry.title
     alert_description = "For more information, please see the full page at " + entry.link
     alert_schedule = {"start":"TZID=America/New_York:20200622T070000","repeatRule":"FREQ=WEEKLY;INTERVAL=1;BYDAY=MO","type":"ical","enabled":"true"}
     if report_request is True: 
         sc.alerts.create(query={"id":query_id}, schedule=alert_schedule, data_type="vuln", name=alert_name, description=alert_description, trigger=('sumip','>=','1'), always_exec_on_trigger=True, action=[{'type': 'report','report':{'id': report_id}}])
         print("Created an reporting alert for", entry.title)
     elif report_request is False and len(email_list) >= 5:
-        #email_s = ','.join(email_list)
         sc.alerts.create(query={"id":query_id}, schedule=alert_schedule, data_type="vuln", name=alert_name, description=alert_description, trigger=('sumip','>=','1'), always_exec_on_trigger=True, action=[{'type': 'email','subject': alert_name, 'message': alert_description, 'addresses': email_list, 'includeResults': 'true'}])
         print("Created an email alert for", entry.title)
     else:
@@ -363,17 +384,16 @@ for current_argument, current_value in arguments:
     if current_argument in ("--asset"):
         asset_request = True
     if current_argument in ("-f", "--feed"):
-        #print (("Enabling special output mode (%s)") % (current_value))
         feed = current_value.upper()
         if current_value == "us-cert":
             feed_URL = "https://www.us-cert.gov/ncas/alerts.xml"
-            #query_populate('https://www.us-cert.gov/ncas/alerts.xml', current_value.upper())
         elif current_value == "ms-isac" or current_value == "cis":
             feed_URL = "https://www.cisecurity.org/feed/advisories"
         elif current_value == "cert":
             feed_URL = "https://www.kb.cert.org/vuls/atomfeed"
         elif current_value == "ics-cert":
             feed_URL = "https://us-cert.cisa.gov/ics/advisories/advisories.xml"
+        # ACSC stopped their feed :(
         #elif current_value == "acsc":
         #    feed_URL = "https://www.cyber.gov.au/rssfeed/2"
         elif current_value == "tenable":
