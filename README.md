@@ -5,7 +5,9 @@ VulnFeed 2 Tenb is a way to parse vulnerability data from Cyber Advisory Feeds i
 
 Integrate [Tenable.sc](https://www.tenable.com/products/tenable-sc) with any of the supported Cyber Advisory Organizational feeds (US-CERT, MS-ISAC, CIS, CERT, etc) to automatically pull in advisory alerts, rather than manually copying/pasting them in. If the advisory contains a CVE, a query will be created within Tenable.sc with the name of the advisory (ex: Multiple Vulnerabilities in Google Chrome) that can seen, prioritized, and reported on by the Tenable user.  Alerts, Assets, Assurance Report Cards, and Reports can also be created automatically.
 
-**This is not supported by Tenable.**
+***This tool is not an officially supported Tenable project***
+
+***Use of this tool is subject to the terms and conditions identified below, and is not subject to any license agreement you may have with Tenable***
 
 ## Installation
 
