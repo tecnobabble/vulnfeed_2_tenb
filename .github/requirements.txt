@@ -1,0 +1,9 @@
+#pip install requirements
+pytenable
+feedparser
+python-decouple
+requests
+BeautifulSoup4
+phpserialize
+jinja2
+lxml
