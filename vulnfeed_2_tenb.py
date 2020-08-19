@@ -334,20 +334,20 @@ def entry_parse(entry_description):
 
 # CMU CERT doesn't publish enough info in their feed, we need to grab and parse the actual articles.
 def cert_search(entry):
-    url = re.search("(https://kb.cert.org/vuls/id/\d{3,})", str(entry))
+    url = re.search("(https://kb\.cert\.org/vuls/id/\d{3,})", str(entry))
     r = requests.get(url.group(0))
     return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
 
 # ICS CERT doesn't publish enough info in their feed, we need to grab and parse the actual articles.
 def ics_cert_search(entry):
-    url = re.search("(https://us-cert.cisa.gov/ics/advisories/[icsam]{4,5}-[\d\-]{5,20})", str(entry))
+    url = re.search("(https://us-cert\.cisa\.gov/ics/advisories/[icsam]{4,5}-[\d\-]{5,20})", str(entry))
     r = requests.get(url.group(0))
     return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
 
 # ACSC doesn't publish enough info in their feed, we need to grab and parse the actual articles.
 # Commenting out; disabling the ACSC feed because they removed their RSS feed :( 7-8-20, v1.1.1
 #def acsc_search(entry):
-#    url = re.search("(https://www.cyber.gov.au/threats/.+)", str(entry['link']))
+#    url = re.search("(https://www\.cyber\.gov\.au/threats/.+)", str(entry['link']))
 #    r = requests.get(url.group(0))
 #    return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
 
