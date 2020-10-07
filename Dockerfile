@@ -1,4 +1,4 @@
-FROM python:3.8-slim-buster
+FROM python:3.9.0-slim-buster
 
 RUN /usr/local/bin/python -m pip install --upgrade pip  
 RUN pip3 install pytenable feedparser python-decouple requests BeautifulSoup4 phpserialize jinja2 lxml
