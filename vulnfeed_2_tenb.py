@@ -63,7 +63,7 @@ def tsc_login():
     try:
         sc = TenableSC(sc_address, port=sc_port)
         sc.login(access_key=sc_access_key, secret_key=sc_secret_key)
-    except NameError:
+    except (NameError) as err:
         print("Please verify connection details.")
         exit()
     except (ConnectionError) as err:
@@ -100,6 +100,8 @@ def query_populate():#input_url, feed_source, sc, email_list):
             advisory_cve = ics_cert_search(entry)
         elif feed == "ACSC":
             advisory_cve = acsc_search(entry)
+        elif feed == "TENABLE":
+            advisory_cve = tenable_search(entry)
         else:
             advisory_cve = re.findall("(CVE-\d{4}-\d{1,5})", str(entry.summary_detail))
         # de-dupe any CVEs that are listed multiple times
@@ -259,9 +261,9 @@ def gen_arc_policy(entry, cve_s, arc_id):
 
 # Generate a canned t.sc report about the entry
 def gen_report(entry, entry_description, cve_s):
-    Entry_Title = entry.title
+    Entry_Title = entry.title.replace("'","")
     Entry_ShortDesc = "For more information, please see the full page at " + entry.link
-    Entry_Summary = entry_description
+    Entry_Summary = entry_description.replace("'","")
     cve_list = cve_s
 
     # Load the definition template as a jinja template
@@ -341,6 +343,12 @@ def cert_search(entry):
 # ICS CERT doesn't publish enough info in their feed, we need to grab and parse the actual articles.
 def ics_cert_search(entry):
     url = re.search("(https://us-cert\.cisa\.gov/ics/advisories/[icsam]{4,5}-[\d\-]{5,20})", str(entry))
+    r = requests.get(url.group(0))
+    return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
+
+# Tenable sometimes doesn't publish enough info in their feed, we need to grab and parse the actual articles.
+def tenable_search(entry):
+    url = re.search("(https://www\.tenable\.com/blog/.+)", str(entry['link']))
     r = requests.get(url.group(0))
     return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
 
