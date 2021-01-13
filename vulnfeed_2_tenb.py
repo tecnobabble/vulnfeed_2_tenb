@@ -263,7 +263,7 @@ def gen_arc_policy(entry, cve_s, arc_id):
 def gen_report(entry, entry_description, cve_s):
     Entry_Title = entry.title.replace("'","")
     Entry_ShortDesc = "For more information, please see the full page at " + entry.link
-    Entry_Summary = entry_description.replace("'","")
+    Entry_Summary = entry_description.replace("'","").replace("\\","/")
     cve_list = cve_s
 
     # Load the definition template as a jinja template
