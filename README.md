@@ -3,7 +3,7 @@
 
 VulnFeed 2 Tenb is a way to parse vulnerability data from Cyber Advisory Feeds into [Tenable.sc](https://www.tenable.com/products/tenable-sc).
 
-Integrate [Tenable.sc](https://www.tenable.com/products/tenable-sc) with any of the supported Cyber Advisory Organizational feeds (US-CERT, MS-ISAC, CIS, CERT, etc) to automatically pull in advisory alerts, rather than manually copying/pasting them in. If the advisory contains a CVE, a query will be created within Tenable.sc with the name of the advisory (ex: Multiple Vulnerabilities in Google Chrome) that can seen, prioritized, and reported on by the Tenable user.  Alerts, Assets, Assurance Report Cards, and Reports can also be created automatically.
+Integrate [Tenable.sc](https://www.tenable.com/products/tenable-sc) with any of the supported Cyber Advisory Organizational feeds (US-CERT, MS-ISAC, CIS, CERT, etc) to automatically pull in advisory alerts, rather than manually copying/pasting them in. If the advisory contains a CVE, a query will be created within Tenable.sc with the name of the advisory (ex: Multiple Vulnerabilities in Google Chrome) that can seen, prioritized, and reported on by the Tenable user.  Alerts, Assets, Assurance Report Cards, Dashboards, and Reports can also be created automatically.
 
 ***This tool is not an officially supported Tenable project***
 
@@ -88,8 +88,8 @@ Run the container, passing your .env file to the container and specify the feed 
 	 - Creates an Assurance Report Card for the Feed and a Policy Statement for each feed entry.
 	 - No arguments, optional
  - `--dashboard`
-         - Creates a Dashboard for each feed entry.
-         - No arguments, optional
+    - Creates a Dashboard for each feed entry.
+    - No arguments, optional
 	 
 ```
 $ docker run --rm --env-file .env tecnobabble/vulnfeed_2_tenb:latest --feed us-cert
@@ -119,6 +119,7 @@ A default dashboard template is included with the tool. If you want to specify a
 
 Where *custom_dashboard_template.xml* is the filename of an exported dashboard template from [Tenable.sc](https://www.tenable.com/products/tenable-sc) that's on the host running Docker.
 
+### Custom Content
 You may use the following variables when generting dashboards or reports to use dynamic content from the Vulnerability Feed entry.  As an example, please see the template included at `templates/sc_template.xml`
  - **{{ Feed }}**
      - Name of the feed being called, in uppercase. Ex: US-CERT
@@ -147,7 +148,7 @@ You may use the following variables when generting dashboards or reports to use 
 4. Tenable.sc is queried to see if detection exists for the CVEs listed in the entry, if no detection, the entry is discarded.
 5. Tenable.sc is queried to see if a Query already exists, if so, the entry is skipped.
 6. A Query is created with the feed title and CVEs as filters.
-7. If additional objects are requested (assets, reports, or alerts), they are created.
+7. If additional objects are requested (assets, dashboards, reports, or alerts), they are created.
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
