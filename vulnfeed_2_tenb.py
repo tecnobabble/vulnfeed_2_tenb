@@ -6,7 +6,7 @@ import os
 from decouple import config, UndefinedValueError
 import getopt, sys
 import requests
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, BaseLoader
 from phpserialize import serialize, unserialize
 import base64
 import ast
@@ -38,6 +38,7 @@ report_request = False
 alert_request = False
 asset_request = False
 arc_request = False
+dashboard_request = False
 feed_URL = ""
 email_list = ""
 
@@ -45,7 +46,7 @@ email_list = ""
 full_cmd_arguments = sys.argv
 argument_list = full_cmd_arguments[1:]
 short_options = "hfre:"
-long_options = ["help", "feed=", "report", "alert", "email=", "asset", "arc"]
+long_options = ["help", "feed=", "report", "alert", "email=", "asset", "arc", "dashboard"]
 
 try:
     arguments, values = getopt.getopt(argument_list, short_options, long_options)
@@ -162,6 +163,23 @@ def query_populate():#input_url, feed_source, sc, email_list):
             if skip_report is False:
                 report_id = gen_report(entry, entry_description, cve_s)
                 print("Created an report for", report_name)
+        if dashboard_request is True:
+            entry_description = entry_parse(entry.summary)
+            cve_s = ', '.join(cves)
+            skip_dashboard = False
+            
+            # Make the Dashboard Name usable (replace variables)
+            dashboard_name = dashboard_template_name[0].replace("{{ Feed }}", feed).replace("{{ Entry_Title }}", entry.title)
+
+            for x in range(len(sc_dashboards['response']['usable'])):
+                if dashboard_name == sc_dashboards['response']['usable'][x]['name']:
+                    print("There is an existing dashboard for", dashboard_name, "skipping.")
+                    dashboard_id = sc_dashboards['response']['usable'][x]['id']
+                    skip_dashboard = True
+                    break
+            if skip_dashboard is False:
+                dashboard_id = gen_dashboard(entry, entry_description, cve_s)
+                print("Created an dashboard for", dashboard_name)
 
         if alert_request is True: # and report_request is False:
             alert_name = feed + ": " + entry.title
@@ -301,6 +319,49 @@ def gen_report(entry, entry_description, cve_s):
         sc.patch(report_patch_path, json=report_email_info)
     return report_id
 
+# Generate a canned t.sc dashboard about the entry
+def gen_dashboard(entry, entry_description, cve_s):
+    Entry_Title = entry.title.replace("'","")
+    Entry_ShortDesc = "For more information, please see the full page at " + entry.link
+    Entry_Summary = entry_description.replace("'","").replace("\\","/")
+    cve_list = cve_s
+
+    dashboard_template_file = open('./templates/sc_working_dashboard_template.txt', "r")
+    dashboard_template_contents = dashboard_template_file.read()
+    
+    
+    for x in range(len(re.findall("<definition>(.+)</definition>", str(dashboard_template_contents)))): 
+        r_dashboard_component = Environment(loader=BaseLoader()).from_string(dashboard_components_list[x])
+        component_render = r_dashboard_component.render(Entry_Title=Entry_Title, Entry_ShortDesc=Entry_ShortDesc, Entry_Summary=Entry_Summary, cve_list=cve_list)
+        component_raw = ast.literal_eval(component_render)
+        component_output = base64.b64encode(serialize(component_raw))
+
+        dashboard_template_contents = str(dashboard_template_contents).replace('{{ dashboard_output }}', component_output.decode("utf8"), 1)
+        #print(dashboard_template_contents)  
+        #dashboard_template_contents.replace('re.findall("<definition>(.+)</definition>", str(dashboard_template_contents)[x])',dashboard_components_list[x])
+ 
+    #print(dashboard_template_contents)       
+    
+    r_dashboard_full = Environment(loader=BaseLoader()).from_string(dashboard_template_contents)
+    dashboard_full = r_dashboard_full.render(Entry_Title=Entry_Title, Entry_ShortDesc=Entry_ShortDesc, Entry_Summary=Entry_Summary, cve_list=cve_list, Feed=feed)
+    
+
+    # Write the output to a file that we'll then upload to tsc.
+    dashboard_name = Entry_Title.replace(" ","").replace(":","-")[:15] + "_dashboard.xml"
+    generated_tsc_dashboard_file = open(dashboard_name, "w")
+    generated_tsc_dashboard_file.write(dashboard_full)
+    generated_tsc_dashboard_file.close()
+
+    # Upload the dashboard to T.sc
+    generated_tsc_dashboard_file = open(dashboard_name, "r")
+    tsc_file = sc.files.upload(generated_tsc_dashboard_file)
+    dashboard_data = { "name":"","order":"1","filename":str(tsc_file) }
+    dashboard_post = sc.post('dashboard/import', json=dashboard_data).text
+    dashboard_post = json.loads(dashboard_post)
+    dashboard_id = dashboard_post['response']['id']
+    generated_tsc_dashboard_file.close()
+
+    return dashboard_id
 
 # Generate an alert (requires a query and report to be created)
 def gen_alert(report_id, query_id, entry, alert_name):
@@ -391,6 +452,8 @@ for current_argument, current_value in arguments:
         arc_request = True
     if current_argument in ("--asset"):
         asset_request = True
+    if current_argument in ("--dashboard"):
+        dashboard_request = True
     if current_argument in ("-f", "--feed"):
         feed = current_value.upper()
         if current_value == "us-cert":
@@ -487,6 +550,45 @@ if len(feed_URL) >= 10:
 
     if alert_request is True:
         sc_alerts = sc.alerts.list()
+
+    if dashboard_request is True:
+        sc_dashboards = sc.get('dashboard').text
+        sc_dashboards = json.loads(sc_dashboards)
+        # Check to see if a custom template is provided
+        if os.path.isfile('./templates/custom_sc_dashboard.xml'):
+            sc_dashboard_template_path = './templates/custom_sc_dashboard.xml'
+        else:
+            sc_dashboard_template_path = "./templates/sc_dashboard_template.xml"
+
+        # Let's read the base sc template and pull out the dashboard definitions and other info
+        sc_dashboard_template_file = open(sc_dashboard_template_path, "r")
+        dashboard_template_contents = sc_dashboard_template_file.read()
+        dashboard_template_def = re.findall("<definition>(.+)</definition>", str(dashboard_template_contents))
+        dashboard_template_name = re.findall("<name>(.+)</name>", str(dashboard_template_contents))
+        dashboard_template_desc = re.findall("<description>(.+)</description>", str(dashboard_template_contents))
+        sc_dashboard_template_file.close()
+
+        # replace def with tag to be substituted later
+        new_sc_dashboard_template = re.sub("<definition>(.+)</definition>", "<definition>{{ dashboard_output }}</definition>", str(dashboard_template_contents))
+        sc_working_dashboard_template_file = open('./templates/sc_working_dashboard_template.txt', "w")
+        sc_working_dashboard_template_file.write(new_sc_dashboard_template)
+        sc_working_dashboard_template_file.close()
+        
+        dashboard_components_list = []
+        # Let's put the encoded dashboard def into a format we can work with
+        for component_def in dashboard_template_def:
+            component_template_def = base64.b64decode(component_def)
+            component_template_def = unserialize(component_template_def, decode_strings=True)
+            #print(component_template_def)
+            # Replace the CVE placeholder with something we can swap out later
+            component_template_def = str(component_template_def).replace("CVE-1990-0000", "{{ cve_list }}")
+            dashboard_components_list.append(component_template_def)
+
+        # Write this definition template to a file
+        #dashboard_template_def_file = open("./templates/dashboard_definition.txt", "w")
+        #dashboard_template_def_file.write(str(dashboard_components_list))
+        #dashboard_template_def_file.close()
+
     query_populate()
 else:
     print("Please specify a feed or --help")

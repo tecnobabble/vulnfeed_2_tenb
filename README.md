@@ -44,7 +44,7 @@ SC_PORT=8443
 * SC_ADDRESS can be an IP or hostname.
 * SC_PORT is optional; defaults to 443.
 * The user who's API keys you select should be a part of the same primary group as the user who will use the objects created, though objects can be shared to other groups. 
-* The user must be able to create alerts, if the `--alert` flag is used, otherwise no specific user role is needed for this user, as any user can create queries, assets, and reports or view plugin attribute data.
+* The user must be able to create alerts, if the `--alert` flag is used, otherwise no specific user role is needed for this user, as any user can create queries, assets, dashboards, and reports or view plugin attribute data.
 * If desired to be used in multiple organizations within one [Tenable.sc](https://www.tenable.com/products/tenable-sc) console, run the script multiple times, specifiying different API keys for a user in each organization.
 
 ## Requirements
@@ -87,9 +87,12 @@ Run the container, passing your .env file to the container and specify the feed 
  - `--arc`
 	 - Creates an Assurance Report Card for the Feed and a Policy Statement for each feed entry.
 	 - No arguments, optional
+ - `--dashboard`
+         - Creates a Dashboard for each feed entry.
+         - No arguments, optional
 	 
 ```
-$ docker run --env-file .env tecnobabble/vulnfeed_2_tenb:latest --feed us-cert
+$ docker run --rm --env-file .env tecnobabble/vulnfeed_2_tenb:latest --feed us-cert
 
 Created a query for AA20-133A: Top 10 Routinely Exploited Vulnerabilities
 Created a query for AA20-126A: APT Groups Target Healthcare and Essential Services
@@ -106,11 +109,17 @@ There is an existing query for AA20-020A: Critical Vulnerability in Citrix Appli
 
 ### Custom Reporting Templates
 A default report template is included with the tool. If you want to specify a custom report PDF template, use [Docker Volumes](https://docs.docker.com/storage/volumes/) to specify the `templates/custom_sc_report.xml` file.  NOTE: You must specify the `--report` flag to use custom reporting templates. 
->`$ docker run -v ${PWD}/custom_template.xml:templates/custom_sc_report.xml --env-file .env tecnobabble/vulnfeed_2_tenb:latest --feed us-cert --report`
+>`$ docker run --rm -v ${PWD}/custom_report_template.xml:templates/custom_sc_report.xml --env-file .env tecnobabble/vulnfeed_2_tenb:latest --feed us-cert --report`
 
-Where *custom_template.xml* is the filename of an exported PDF template from [Tenable.sc](https://www.tenable.com/products/tenable-sc) that's on the host running Docker.
+Where *custom_report_template.xml* is the filename of an exported PDF template from [Tenable.sc](https://www.tenable.com/products/tenable-sc) that's on the host running Docker.
 
-You may use the following variables when generting reports to use dynamic content from the Vulnerability Feed entry.  As an example, please see the template included at `templates/sc_template.xml`
+### Custom Dashboard Templates
+A default dashboard template is included with the tool. If you want to specify a custom dashboard template, use [Docker Volumes](https://docs.docker.com/storage/volumes/) to specify the `templates/custom_sc_dashboard.xml` file.  NOTE: You must specify the `--dashboard` flag to use custom dashboard templates.
+>`$ docker run --rm -v ${PWD}/custom_dashboard_template.xml:templates/custom_sc_dashboard.xml --env-file .env tecnobabble/vulnfeed_2_tenb:latest --feed us-cert --dashboard`
+
+Where *custom_dashboard_template.xml* is the filename of an exported dashboard template from [Tenable.sc](https://www.tenable.com/products/tenable-sc) that's on the host running Docker.
+
+You may use the following variables when generting dashboards or reports to use dynamic content from the Vulnerability Feed entry.  As an example, please see the template included at `templates/sc_template.xml`
  - **{{ Feed }}**
      - Name of the feed being called, in uppercase. Ex: US-CERT
  - **{{ Entry_Title }}**
@@ -125,6 +134,7 @@ You may use the following variables when generting reports to use dynamic conten
 
 ### Suggested operations
 * Run the script on a scheduled basis; daily is likely frequently enough. The script checks for and should not create duplicates.
+* Run the docker container with the `--rm` flag to auto delete the container after running.
 * If an advisory is released that specifies vulnerabilities that do not yet have published plugins, the script will check for and create a query when plugins do exist, as long as the advisory is still recent enough to be in the feed.
 * Run the script multiple times with different feeds specified to get multiple feeds into Tenable.sc.
 * Generated alerts currently will run on a weekly schedule, Mondays at 7 AM EST.  
