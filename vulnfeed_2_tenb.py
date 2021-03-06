@@ -105,16 +105,18 @@ def query_populate():#input_url, feed_source, sc, email_list):
         elif feed == "TENABLE":
             advisory_cve = tenable_search(entry)
             entry_title = entry.title
-        else:
+        elif feed == "CIS" or feed == "MS-ISAC":
             try:
                 if feed == "CIS" or feed == "MS-ISAC":
-                    cis_id = re.search(r"<span class=\"advisory-number\">(\d{4}-\d{2,5})</span>", str(entry.summary_detail)).group(1)
+                    cis_id = re.search(r"advisory number:.{1,150}(\d{4}-\d{2,5})", str(entry.summary_detail), flags=re.IGNORECASE | re.DOTALL).group(1)
                     entry_title = entry.title + " (" + cis_id + ")"
+                    advisory_cve = re.findall("(CVE-\d{4}-\d{1,5})", str(entry.summary_detail))
             except AttributeError:
                 entry_title = entry.title
+                advisory_cve = re.findall("(CVE-\d{4}-\d{1,5})", str(entry.summary_detail))
                 print("Something went wrong parsing the feed looking for the advisory ID")
-            if not entry_title:
-                entry_tile = entry.title
+        else:    
+            entry_title = entry.title
             advisory_cve = re.findall("(CVE-\d{4}-\d{1,5})", str(entry.summary_detail))
         # de-dupe any CVEs that are listed multiple times
         cves = de_dup_cve(advisory_cve)
