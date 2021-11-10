@@ -89,13 +89,13 @@ def de_dup_cve(x):
 def query_populate():#input_url, feed_source, sc, email_list):
     if feed == "CISA":
         try:
-            #with requests.Session() as s:
-            #    download = s.get("https://www.cisa.gov/sites/default/files/csv/known_exploited_vulnerabilities.csv")
+            with requests.Session() as s:
+                download = s.get("https://www.cisa.gov/sites/default/files/csv/known_exploited_vulnerabilities.csv")
             download = open('known_exploited_vulnerabilities.csv')
         except:
             print("Something went wrong with the CISA feed.")
             exit()
-        #decoded_download = download.content.decode('utf-8')
+        #decoded_download = download.decode('utf-8')
         cisa_raw_data = csv.reader(download, delimiter=',')
         next(cisa_raw_data, None) #skip the headers
         due_dates = set()
