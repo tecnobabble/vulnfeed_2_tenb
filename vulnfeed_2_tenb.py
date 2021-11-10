@@ -7,6 +7,7 @@ from decouple import config, UndefinedValueError
 import getopt, sys
 import requests
 import csv
+import datetime
 from jinja2 import Environment, FileSystemLoader, BaseLoader
 from phpserialize import serialize, unserialize
 import base64
@@ -88,30 +89,143 @@ def de_dup_cve(x):
 def query_populate():#input_url, feed_source, sc, email_list):
     if feed == "CISA":
         try:
-            with requests.Session() as s:
-                download = s.get("https://www.cisa.gov/sites/default/files/csv/known_exploited_vulnerabilities.csv")
+            #with requests.Session() as s:
+            #    download = s.get("https://www.cisa.gov/sites/default/files/csv/known_exploited_vulnerabilities.csv")
+            download = open('known_exploited_vulnerabilities.csv')
         except:
             print("Something went wrong with the CISA feed.")
             exit()
-        decoded_download = download.content.decode('utf-8')
-        cisa_data = csv.reader(decoded_download.splitlines(), delimiter=',')
-        next(cisa_data, None) #skip the headers
-        due_date = set()
+        #decoded_download = download.content.decode('utf-8')
+        cisa_raw_data = csv.reader(download, delimiter=',')
+        next(cisa_raw_data, None) #skip the headers
+        due_dates = set()
+        cisa_data = []
+        for row in cisa_raw_data:
+            due_dates.add(cisa_date(row[7]))
+            cisa_data.append(row)
+        due_dates = list(sorted(due_dates))
+        for index, x in enumerate(due_dates):
+            due_dates[index] = x.strftime('%-d-%b-%y')
+        cisa_vulns = {k: [] for k in due_dates}
         for row in cisa_data:
-            due_date.add(row[7])
-        for row in cisa_data:
-            if row[7] in 
-        print(cisa_data)
+            cisa_vulns[row[7]].append(row[0].replace('\u200b',''))
+
+        # Loop through the items in CISA's Dictionary
+        for date, cves in cisa_vulns.items():
+            entry_title = 'KEVs Due ' + date
+            entry_link = "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
+            entry_description = "These are from the CISA-managed catalog of known exploited vulnerabilities that carry significant risk to the federal enterprise (https://cisa.gov/known-exploited-vulnerabilities). CISA will determine vulnerabilities warranting inclusion in the catalog based on reliable evidence that the exploit is being actively used to exploit public or private organizations by a threat actor."
+            # Query To see if plugins exist to test for the vulnerability; 
+            # excluding for CISA cause the lookups take too long and it's assumed that we have coverage.
+            '''
+            has_plugins = False
+            for cve in cves:
+                plugins = sc.plugins.list(filter=('xrefs', 'like', cve))
+                if any(True for _ in plugins):
+                    has_plugins = True
+                    continue
+                else:
+                    continue
+            if has_plugins is False:
+                print("No detection plugins found for CVEs in", entry_title, "skipping.")
+                continue
+            '''
+            for x in range(len(sc_queries['usable'])):
+                if entry_title == sc_queries['usable'][x]['name']:
+                    print("There is an existing query for", entry_title, "skipping.")
+                    query_id = sc_queries['usable'][x]['id']
+                    break
+            else:
+                # Turn the CVEs into a comma list
+                cve_s = ', '.join(cves)
+                # Create the Query
+                query_response = sc.queries.create(entry_title, 'sumid', 'vuln', ('cveID', '=', cve_s), tags=str(feed))
+                query_id = query_response['id']
+                print("Created a query for", entry_title)
+            if arc_request is True:
+                cve_s = ', '.join(cves)
+                skip_arc = False
+                skip_arc_entry = False
+                for x in range(len(sc_arcs['response']['usable'])):
+                    if arc_name == sc_arcs['response']['usable'][x]['name']:
+                        skip_arc = True
+                        for y in range(len(sc_arcs['response']['usable'][x]['policyStatements'])):
+                            if entry_title == sc_arcs['response']['usable'][x]['policyStatements'][y]['label']:
+                                print("There is an existing ARC entry for", entry_title, "skipping")
+                                skip_arc_entry = True
+                                break
+                            else:
+                                arc_id = sc_arcs['response']['usable'][x]['id']
+                if skip_arc is False:
+                    gen_arc(cve_s, entry_title)
+                    print("Created an ARC for", arc_name)
+                if skip_arc_entry is False and skip_arc is True:
+                    gen_arc_policy(cve_s, arc_id, entry_title)
+                    print("Created an ARC Policy Statement for", entry_title, "in", arc_name)
+            if asset_request is True:
+                skip_asset = False 
+                for x in range(len(sc_assets['usable'])):
+                    if entry_title == sc_assets['usable'][x]['name']:
+                        print("There is an existing asset for", entry_title, "skipping.")
+                        skip_asset = True
+                        break
+                if skip_asset is False:
+                    gen_asset(entry_link, cves, entry_title)
+                    print("Created an asset for", entry_title)
+            if report_request is True:
+                cve_s = ', '.join(cves)
+                skip_report = False
+            
+                # Make the Report Name usable (replace variables)
+                report_name = str(template_report_name).replace("{{ Feed }}", feed).replace("{{ Entry_Title }}", entry_title) 
+
+                for x in range(len(sc_reports['response']['usable'])):
+                    if report_name == sc_reports['response']['usable'][x]['name']:
+                        print("There is an existing report for", report_name, "skipping.")
+                        report_id = sc_reports['response']['usable'][x]['id']
+                        skip_report = True
+                        break
+                if skip_report is False:
+                    report_id = gen_report(entry_link, entry_description, cve_s, entry_title)
+                    print("Created an report for", report_name)
+                    
+            if alert_request is True: # and report_request is False:
+                alert_name = feed + ": " + entry_title
+                skip_alert = False
+                for x in range(len(sc_alerts['usable'])):
+                    if alert_name == sc_alerts['usable'][x]['name']:
+                        print("There is an existing alert for", alert_name, "skipping.")
+                        skip_alert = True
+                        break
+                if skip_alert is False:
+                    gen_alert(report_id, query_id, entry_link, alert_name, entry_title)
+                    
+            if dashboard_request is True:
+                cve_s = ', '.join(cves)
+                skip_dashboard = False
+            
+                # Make the Dashboard Name usable (replace variables)
+                dashboard_name = dashboard_template_name[0].replace("{{ Feed }}", feed).replace("{{ Entry_Title }}", entry_title)
+
+                for x in range(len(sc_dashboards['response']['usable'])):
+                    if dashboard_name == sc_dashboards['response']['usable'][x]['name']:
+                        print("There is an existing dashboard for", dashboard_name, "skipping.")
+                        dashboard_id = sc_dashboards['response']['usable'][x]['id']
+                        skip_dashboard = True
+                        break
+                if skip_dashboard is False:
+                    dashboard_id = gen_dashboard(entry_link, entry_description, cve_s, entry_title)
+                    print("Created an dashboard for", dashboard_name)
         exit()
-        cisa_cve = cisa_parse(cisa_data)
-        exit()
-    try:
-        feed_details = feedparser.parse(feed_URL)
-        if feed_details.feed.title:
-            pass
-    except (KeyError, AttributeError):
-        print("Something looks to be wrong with the", feed, "feed. Please verify connectivity.")
-        exit()
+    else:
+        try:
+            feed_details = feedparser.parse(feed_URL)
+            if feed_details.feed.title:
+                pass
+        except (KeyError, AttributeError):
+            print("Something looks to be wrong with the", feed, "feed. Please verify connectivity.")
+    
+    
     for entry in feed_details.entries:
         advisory_cve = []
         entry_title = ""
@@ -119,24 +233,30 @@ def query_populate():#input_url, feed_source, sc, email_list):
         if feed == "CERT":
             advisory_cve = cert_search(entry)
             entry_title = entry.title
+            entry_link = entry.link
         elif feed == "ICS-CERT":
             advisory_cve = ics_cert_search(entry)
             entry_title = entry.title
+            entry_link = entry.link
         elif feed == "TENABLE":
             advisory_cve = tenable_search(entry)
             entry_title = entry.title
+            entry_link = entry.link
         elif feed == "CIS" or feed == "MS-ISAC":
             try:
                 if feed == "CIS" or feed == "MS-ISAC":
                     cis_id = re.search(r"advisory number:.{1,150}(\d{4}-\d{2,5})", str(entry.summary_detail), flags=re.IGNORECASE | re.DOTALL).group(1)
                     entry_title = entry.title + " (" + cis_id + ")"
+                    entry_link = entry.link
                     advisory_cve = re.findall("(CVE-\d{4}-\d{1,5})", str(entry.summary_detail))
             except AttributeError:
                 entry_title = entry.title
+                entry_link = entry.link
                 advisory_cve = re.findall("(CVE-\d{4}-\d{1,5})", str(entry.summary_detail))
                 print("Something went wrong parsing the feed looking for the advisory ID")
         else:    
             entry_title = entry.title
+            entry_link = entry.link
             advisory_cve = re.findall("(CVE-\d{4}-\d{1,5})", str(entry.summary_detail))
         # de-dupe any CVEs that are listed multiple times
         cves = de_dup_cve(advisory_cve)
@@ -177,7 +297,7 @@ def query_populate():#input_url, feed_source, sc, email_list):
                     skip_asset = True
                     break
             if skip_asset is False:
-                gen_asset(entry, cves, entry_title)
+                gen_asset(entry_link, cves, entry_title)
                 print("Created an asset for", entry_title)
         if report_request is True:
             entry_description = entry_parse(entry.summary)
@@ -194,7 +314,7 @@ def query_populate():#input_url, feed_source, sc, email_list):
                     skip_report = True
                     break
             if skip_report is False:
-                report_id = gen_report(entry, entry_description, cve_s, entry_title)
+                report_id = gen_report(entry_link, entry_description, cve_s, entry_title)
                 print("Created an report for", report_name)
         if dashboard_request is True:
             entry_description = entry_parse(entry.summary)
@@ -211,7 +331,7 @@ def query_populate():#input_url, feed_source, sc, email_list):
                     skip_dashboard = True
                     break
             if skip_dashboard is False:
-                dashboard_id = gen_dashboard(entry, entry_description, cve_s, entry_title)
+                dashboard_id = gen_dashboard(entry_link, entry_description, cve_s, entry_title)
                 print("Created an dashboard for", dashboard_name)
 
         if alert_request is True: # and report_request is False:
@@ -223,7 +343,7 @@ def query_populate():#input_url, feed_source, sc, email_list):
                     skip_alert = True
                     break
             if skip_alert is False:
-                gen_alert(report_id, query_id, entry, alert_name, entry_title)
+                gen_alert(report_id, query_id, entry_link, alert_name, entry_title)
     
         if arc_request is True:
             cve_s = ', '.join(cves)
@@ -240,14 +360,19 @@ def query_populate():#input_url, feed_source, sc, email_list):
                         else:
                             arc_id = sc_arcs['response']['usable'][x]['id']
             if skip_arc is False:
-                gen_arc(entry, cve_s, entry_title)
+                gen_arc(cve_s, entry_title)
                 print("Created an ARC for", arc_name)
             if skip_arc_entry is False and skip_arc is True:
-                gen_arc_policy(entry, cve_s, arc_id, entry_title)
+                gen_arc_policy(cve_s, arc_id, entry_title)
                 print("Created an ARC Policy Statement for", entry_title, "in", arc_name)
 
+# Fix CISA Dates
+def cisa_date(date_input):
+    dt_obj = datetime.datetime.strptime(date_input,'%d-%b-%y')
+    return(dt_obj)
+
 # Generate an arc for the first time
-def gen_arc(entry, cve_s, entry_title):
+def gen_arc(cve_s, entry_title):
     Entry_Title = entry_title
     cve_list = cve_s
 
@@ -288,7 +413,7 @@ def gen_arc(entry, cve_s, entry_title):
 
 
 # Create a new arc policy statement
-def gen_arc_policy(entry, cve_s, arc_id, entry_title):
+def gen_arc_policy(cve_s, arc_id, entry_title):
     Entry_Title = entry_title
     cve_list = cve_s
     arc_id = "arc/" + arc_id
@@ -311,9 +436,9 @@ def gen_arc_policy(entry, cve_s, arc_id, entry_title):
 
 
 # Generate a canned t.sc report about the entry
-def gen_report(entry, entry_description, cve_s, entry_title):
+def gen_report(entry_link, entry_description, cve_s, entry_title):
     Entry_Title = entry_title.replace("'","")
-    Entry_ShortDesc = "For more information, please see the full page at " + entry.link
+    Entry_ShortDesc = "For more information, please see the full page at " + entry_link
     Entry_Summary = entry_description.replace("'","").replace("\\","/")
     cve_list = cve_s
 
@@ -353,9 +478,9 @@ def gen_report(entry, entry_description, cve_s, entry_title):
     return report_id
 
 # Generate a canned t.sc dashboard about the entry
-def gen_dashboard(entry, entry_description, cve_s, entry_title):
+def gen_dashboard(entry_link, entry_description, cve_s, entry_title):
     Entry_Title = entry_title.replace("'","")
-    Entry_ShortDesc = "For more information, please see the full page at " + entry.link
+    Entry_ShortDesc = "For more information, please see the full page at " + entry_link
     Entry_Summary = entry_description.replace("'","").replace("\\","/")
     cve_list = cve_s
 
@@ -397,8 +522,8 @@ def gen_dashboard(entry, entry_description, cve_s, entry_title):
     return dashboard_id
 
 # Generate an alert (requires a query and report to be created)
-def gen_alert(report_id, query_id, entry, alert_name, entry_title):
-    alert_description = "For more information, please see the full page at " + entry.link
+def gen_alert(report_id, query_id, entry_link, alert_name, entry_title):
+    alert_description = "For more information, please see the full page at " + entry_link
     alert_schedule = {"start":"TZID=America/New_York:20200622T070000","repeatRule":"FREQ=WEEKLY;INTERVAL=1;BYDAY=MO","type":"ical","enabled":"true"}
     if report_request is True: 
         sc.alerts.create(query={"id":query_id}, schedule=alert_schedule, data_type="vuln", name=alert_name, description=alert_description, trigger=('sumip','>=','1'), always_exec_on_trigger=True, action=[{'type': 'report','report':{'id': report_id}}])
@@ -411,14 +536,14 @@ def gen_alert(report_id, query_id, entry, alert_name, entry_title):
         exit()
 
 # Generate an asset
-def gen_asset(entry, cves, entry_title):
+def gen_asset(entry_link, cves, entry_title):
     asset_rules = ['any']
     for cve in cves:
         cve_string = "CVE|" + cve
         asset_rules.append(('xref','eq',cve_string))
     asset_rules = tuple(asset_rules)
     asset_name = entry_title
-    asset_description = "For more information, please see the full page at " + entry.link
+    asset_description = "For more information, please see the full page at " + entry_link
     output = sc.asset_lists.create(name=asset_name,description=asset_description,list_type="dynamic",tags=feed,rules=asset_rules)
 
 # Get a reasonable summary if one isn't provided
