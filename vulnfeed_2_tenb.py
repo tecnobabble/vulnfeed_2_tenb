@@ -6,6 +6,7 @@ import os
 from decouple import config, UndefinedValueError
 import getopt, sys
 import requests
+import csv
 from jinja2 import Environment, FileSystemLoader, BaseLoader
 from phpserialize import serialize, unserialize
 import base64
@@ -85,6 +86,25 @@ def de_dup_cve(x):
 
 # Main function to pull feeds and query tenable
 def query_populate():#input_url, feed_source, sc, email_list):
+    if feed == "CISA":
+        try:
+            with requests.Session() as s:
+                download = s.get("https://www.cisa.gov/sites/default/files/csv/known_exploited_vulnerabilities.csv")
+        except:
+            print("Something went wrong with the CISA feed.")
+            exit()
+        decoded_download = download.content.decode('utf-8')
+        cisa_data = csv.reader(decoded_download.splitlines(), delimiter=',')
+        next(cisa_data, None) #skip the headers
+        due_date = set()
+        for row in cisa_data:
+            due_date.add(row[7])
+        for row in cisa_data:
+            if row[7] in 
+        print(cisa_data)
+        exit()
+        cisa_cve = cisa_parse(cisa_data)
+        exit()
     try:
         feed_details = feedparser.parse(feed_URL)
         if feed_details.feed.title:
@@ -482,6 +502,9 @@ for current_argument, current_value in arguments:
         #    feed_URL = "https://www.cyber.gov.au/rssfeed/2"
         elif current_value == "tenable":
             feed_URL = "https://www.tenable.com/blog/cyber-exposure-alerts/feed"
+        elif current_value == "cisa":
+            feed_URL = "https://www.cisa.gov/sites/default/files/csv/known_exploited_vulnerabilities.csv"
+
         else:
             print("Input a valid feed")
             exit()
