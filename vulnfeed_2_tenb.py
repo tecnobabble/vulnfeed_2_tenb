@@ -377,7 +377,7 @@ def gen_arc(cve_s, entry_title):
     cve_list = cve_s
 
     # Load the definition template as a jinja template
-    env = Environment(loader = FileSystemLoader('./templates'), trim_blocks=True, lstrip_blocks=True)
+    env = Environment(loader = FileSystemLoader('/templates'), trim_blocks=True, lstrip_blocks=True)
     arc_template_def = env.get_template('arc_definition.txt')
 
     #Render the definition template with data and print the output
@@ -423,7 +423,7 @@ def gen_arc_policy(cve_s, arc_id, entry_title):
 
     sc_arc_policies = sc_arcs_feed['response']['policyStatements']
 
-    env = Environment(loader = FileSystemLoader('./templates'), trim_blocks=True, lstrip_blocks=True)
+    env = Environment(loader = FileSystemLoader('/templates'), trim_blocks=True, lstrip_blocks=True)
     arc_template_def = env.get_template('arc_policy.txt')
 
     #Render the definition template with data and print the output
@@ -443,7 +443,7 @@ def gen_report(entry_link, entry_description, cve_s, entry_title):
     cve_list = cve_s
 
     # Load the definition template as a jinja template
-    env = Environment(loader = FileSystemLoader('./templates'), trim_blocks=True, lstrip_blocks=True)
+    env = Environment(loader = FileSystemLoader('/templates'), trim_blocks=True, lstrip_blocks=True)
     template_def = env.get_template('definition.txt')
 
     #Render the definition template with data and print the output
@@ -484,7 +484,7 @@ def gen_dashboard(entry_link, entry_description, cve_s, entry_title):
     Entry_Summary = entry_description.replace("'","").replace("\\","/")
     cve_list = cve_s
 
-    dashboard_template_file = open('./templates/sc_working_dashboard_template.txt', "r")
+    dashboard_template_file = open('/templates/sc_working_dashboard_template.txt', "r")
     dashboard_template_contents = dashboard_template_file.read()
     
     
@@ -644,10 +644,10 @@ if len(feed_URL) >= 10:
         sc_reports = sc.get('reportDefinition').text
         sc_reports = json.loads(sc_reports)
         # Check to see if a custom template is provided
-        if os.path.isfile('./templates/custom_sc_report.xml'):
-            sc_template_path = './templates/custom_sc_report.xml'
+        if os.path.isfile('/templates/custom_sc_report.xml'):
+            sc_template_path = '/templates/custom_sc_report.xml'
         else:
-            sc_template_path = "./templates/sc_template.xml"
+            sc_template_path = "/templates/sc_template.xml"
 
         # Let's read the base sc template and pull out the report definition and other info
         sc_template_file = open(sc_template_path, "r")
@@ -659,7 +659,7 @@ if len(feed_URL) >= 10:
 
         # replace def with tag to be substituted later
         new_sc_template = re.sub("<definition>(.+)</definition>", "<definition>{{ report_output }}</definition>", str(template_contents))
-        sc_working_template_file = open('./templates/sc_working_template.txt', "w")
+        sc_working_template_file = open('/templates/sc_working_template.txt', "w")
         sc_working_template_file.write(new_sc_template)
         sc_working_template_file.close()
 
@@ -671,17 +671,17 @@ if len(feed_URL) >= 10:
         template_def = str(template_def).replace("CVE-1990-0000", "{{ cve_list }}")
 
         # Write this definition template to a file
-        template_def_file = open("./templates/definition.txt", "w")
+        template_def_file = open("/templates/definition.txt", "w")
         template_def_file.write(template_def)
         template_def_file.close()
     if arc_request is True:
         sc_arcs = sc.get('arc').text
         sc_arcs = json.loads(sc_arcs)
         arc_name = feed + " Advisory Alerts"
-        if os.path.isfile('./templates/custom_arc_report.xml'):
-            arc_template_path = './templates/custom_arc_report.xml'
+        if os.path.isfile('/templates/custom_arc_report.xml'):
+            arc_template_path = '/templates/custom_arc_report.xml'
         else:
-            arc_template_path = "./templates/arc_template.xml"
+            arc_template_path = "/templates/arc_template.xml"
 
         # Let's read the base sc template and pull out the report definition and other info
         arc_template_file = open(arc_template_path, "r")
@@ -693,7 +693,7 @@ if len(feed_URL) >= 10:
         # replace def with tag to be substituted later
         new_arc_template = re.sub("<definition>(.+)</definition>", "<definition>{{ arc_output }}</definition>", str(arc_template_contents))
         arc_policy_def = re.search("(<policyStatement>.+</policyStatement>)", str(new_arc_template))
-        arc_working_template_file = open('./templates/arc_working_template.txt', "w")
+        arc_working_template_file = open('/templates/arc_working_template.txt', "w")
         arc_working_template_file.write(new_arc_template)
         arc_working_template_file.close()
 
@@ -705,7 +705,7 @@ if len(feed_URL) >= 10:
         arc_template_def = str(arc_template_def).replace("CVE-1990-0000", "{{ cve_list }}")
 
         # Write this definition template to a file
-        arc_template_def_file = open("./templates/arc_definition.txt", "w")
+        arc_template_def_file = open("/templates/arc_definition.txt", "w")
         arc_template_def_file.write(arc_template_def)
         arc_template_def_file.close()
 
@@ -716,10 +716,10 @@ if len(feed_URL) >= 10:
         sc_dashboards = sc.get('dashboard').text
         sc_dashboards = json.loads(sc_dashboards)
         # Check to see if a custom template is provided
-        if os.path.isfile('./templates/custom_sc_dashboard.xml'):
-            sc_dashboard_template_path = './templates/custom_sc_dashboard.xml'
+        if os.path.isfile('/templates/custom_sc_dashboard.xml'):
+            sc_dashboard_template_path = '/templates/custom_sc_dashboard.xml'
         else:
-            sc_dashboard_template_path = "./templates/sc_dashboard_template.xml"
+            sc_dashboard_template_path = "/templates/sc_dashboard_template.xml"
 
         # Let's read the base sc template and pull out the dashboard definitions and other info
         sc_dashboard_template_file = open(sc_dashboard_template_path, "r")
@@ -731,7 +731,7 @@ if len(feed_URL) >= 10:
 
         # replace def with tag to be substituted later
         new_sc_dashboard_template = re.sub("<definition>(.+)</definition>", "<definition>{{ dashboard_output }}</definition>", str(dashboard_template_contents))
-        sc_working_dashboard_template_file = open('./templates/sc_working_dashboard_template.txt', "w")
+        sc_working_dashboard_template_file = open('/templates/sc_working_dashboard_template.txt', "w")
         sc_working_dashboard_template_file.write(new_sc_dashboard_template)
         sc_working_dashboard_template_file.close()
         
@@ -746,7 +746,7 @@ if len(feed_URL) >= 10:
             dashboard_components_list.append(component_template_def)
 
         # Write this definition template to a file
-        #dashboard_template_def_file = open("./templates/dashboard_definition.txt", "w")
+        #dashboard_template_def_file = open("/templates/dashboard_definition.txt", "w")
         #dashboard_template_def_file.write(str(dashboard_components_list))
         #dashboard_template_def_file.close()
 
