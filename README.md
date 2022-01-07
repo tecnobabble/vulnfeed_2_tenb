@@ -67,6 +67,7 @@ Run the container, passing your .env file to the container and specify the feed 
         * [ICS-CERT](https://www.us-cert.gov/ics/advisories)   
         * [CERT](https://www.kb.cert.org/vuls/)   
         * [TENABLE](https://www.tenable.com/blog/cyber-exposure-alerts)
+        * [CISA](https://www.cisa.gov/known-exploited-vulnerabilities-catalog)
 	 - Takes 1 string argument; required.  
  -  `--asset`
 	 - Creates a dynamic asset in Tenable.sc with the CVEs noted in the feed entry.
