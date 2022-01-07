@@ -16,6 +16,10 @@ from bs4 import BeautifulSoup
 import html
 import json
 import logging
+import warnings
+
+warnings.filterwarnings('ignore')
+warnings.warn('Starting an unauthenticated session')
 
 #logging.basicConfig(level=logging.CRITICAL)
 
@@ -105,7 +109,7 @@ def query_populate():#input_url, feed_source, sc, email_list):
             cisa_data.append(row)
         due_dates = list(sorted(due_dates))
         for index, x in enumerate(due_dates):
-            due_dates[index] = x.strftime('%-d-%b-%y')
+            due_dates[index] = x.strftime('%Y-%m-%d')
         cisa_vulns = {k: [] for k in due_dates}
         for row in cisa_data:
             cisa_vulns[row[7]].append(row[0].replace('\u200b',''))
@@ -368,7 +372,7 @@ def query_populate():#input_url, feed_source, sc, email_list):
 
 # Fix CISA Dates
 def cisa_date(date_input):
-    dt_obj = datetime.datetime.strptime(date_input,'%d-%b-%y')
+    dt_obj = datetime.datetime.strptime(date_input,'%Y-%m-%d')
     return(dt_obj)
 
 # Generate an arc for the first time
