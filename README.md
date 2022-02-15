@@ -133,6 +133,14 @@ You may use the following variables when generting dashboards or reports to use 
      - The first 500 characters of the entry description.
  - **CVE-1990-0000**
      - This will serve as a placeholder for any CVEs listed in each feed entry. 
+ - **{{ CISA|Past Due }}**
+ - **{{ CISA|7 Days }}**
+ - **{{ CISA|7-14 Days }}**
+ - **{{ CISA|14-28 Days }}**
+ - **{{ CISA|4-8 Weeks }}**
+ - **{{ CISA|8-12 Weeks }}**
+ - **{{ CISA|12+ Weeks }}**
+ 
 
 ### Suggested operations
 * Run the script on a scheduled basis; daily is likely frequently enough. The script checks for and should not create duplicates.
