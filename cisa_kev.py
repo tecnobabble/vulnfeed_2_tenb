@@ -22,7 +22,6 @@ import warnings
 warnings.filterwarnings('ignore')
 warnings.warn('Starting an unauthenticated session')
 
-#logging.basicConfig(level=logging.CRITICAL)
 
 # Set some variables that need setting (pulled from .env file passed to container or seen locally in the same folder as script)
 try:
@@ -40,6 +39,7 @@ if debug_set is True:
     logging.basicConfig(level=logging.DEBUG)
 else:
     logging.basicConfig(level=logging.CRITICAL)
+    #logging.basicConfig(level=logging.DEBUG)
 
 report_request = False
 alert_request = False
@@ -185,12 +185,19 @@ def query_populate():
 
     relative_due_dates = {}
     relative_due_dates['CISA Past Due Vulns'] = past_due_optimize
+    relative_due_dates['CISA Past Due Vulns'].add("past_due")
     relative_due_dates['CISA Vulns Due in the next 7 days'] = due_1_week
+    relative_due_dates['CISA Vulns Due in the next 7 days'].add("due_1_week")
     relative_due_dates['CISA Vulns Due in 7-14 days'] = due_2_week
+    relative_due_dates['CISA Vulns Due in 7-14 days'].add("due_2_week")
     relative_due_dates['CISA Vulns Due in 14-28 days'] = due_4_week
+    relative_due_dates['CISA Vulns Due in 14-28 days'].add("due_4_week")
     relative_due_dates['CISA Vulns Due in 4-8 weeks'] = due_8_week
+    relative_due_dates['CISA Vulns Due in 4-8 weeks'].add("due_8_week")
     relative_due_dates['CISA Vulns Due in 8-12 weeks'] = due_12_week
+    relative_due_dates['CISA Vulns Due in 8-12 weeks'].add("due_12_week")
     relative_due_dates['CISA Vulns Due in more than 12 weeks'] = due_12plus_week_optimize
+    relative_due_dates['CISA Vulns Due in more than 12 weeks'].add("due_12plus_week")
 
     #print(relative_due_dates)
 
@@ -218,7 +225,7 @@ def query_populate():
             if entry_title == sc_queries['usable'][x]['name']:
                 print("Updating the existing query for", entry_title)
                 query_id = sc_queries['usable'][x]['id']
-                query_response = sc.queries.edit(query_id, 'sumid', 'vuln', ('xref', '=', xref_string.rstrip(',')), tags="CISA KEV", description="Updated on " + str(today))
+                query_response = sc.queries.edit(query_id, 'sumid', 'vuln', filters=[{'filterName': 'xref', 'operator': '=', 'value': xref_string.rstrip(',') }], description="Updated on " + str(today))
                 query_done = True
                 break
     
@@ -250,10 +257,27 @@ def query_populate():
 
         for x in range(len(sc_dashboards['response']['usable'])):
             if "CISA Known Exploited Vulns Status - Updated" in sc_dashboards['response']['usable'][x]['name']:
-                print("Replacing the existing dashboard for", dashboard_name)
+                print("Updating the existing dashboard for", sc_dashboards['response']['usable'][x]['name'])
                 dashboard_id = sc_dashboards['response']['usable'][x]['id']
-                sc.delete('dashboard/' + dashboard_id)
-                gen_dashboard(entry_title, entry_description, relative_due_dates, False, dashboard_id)
+                dcomponent = json.loads(sc.get('dashboard/' + dashboard_id + '/component').text)
+                for component in dcomponent['response']:
+                    refresh_required = False
+                    component_details = json.loads(sc.get('dashboard/' + dashboard_id + '/component/' + component['id']).text)['response']
+                    #if component_details['componentType'] == 'matrix':
+                    print("Checking " + component_details['name'] + "...")
+                    for datasources in component_details['definition']['allDataSources']:
+                        query_detail = sc.queries.details(datasources['queryID'])
+                        refresh_required = update_system_query(query_detail, relative_due_dates)
+                    if refresh_required is True:
+                        sc.post('dashboard/' + dashboard_id + '/component/' + component['id'] + '/refresh')
+                        print("Updated "+ component_details['name'])
+                if sc_dashboards['response']['usable'][x]['name'] != dashboard_name:
+                    data = { 'name' : dashboard_name }
+                    sc.patch('dashboard/' + dashboard_id, params=data)
+                    print("Updating the name of " + sc_dashboards['response']['usable'][x]['name'] + " to " + dashboard_name) 
+                
+                #sc.delete('dashboard/' + dashboard_id)
+                #gen_dashboard(entry_title, entry_description, relative_due_dates, False, dashboard_id)
                 skip_dashboard = True
                 break
         if skip_dashboard is False:
@@ -261,16 +285,46 @@ def query_populate():
             print("Created an dashboard for", dashboard_name)
     
     exit()
+   
+#Update a query 
+def update_system_query(query_detail, relative_due_dates):
+    component_updated = False
+    cisa_past_due,cisa_7_day,cisa_14_day,cisa_28_day,cisa_8_week,cisa_12_week,cisa_12plus_week = enable_xrefs(relative_due_dates)
+    for qfilter in query_detail['filters']:
+        if 'CISA-KNOWN-EXPLOITED|past_due' in qfilter['value']:
+            findex = query_detail['filters'].index(qfilter)
+            query_detail['filters'][findex]['value'] = cisa_past_due
+            component_updated = True
+        elif 'CISA-KNOWN-EXPLOITED|due_1_week' in qfilter['value']:
+            findex = query_detail['filters'].index(qfilter)
+            query_detail['filters'][findex]['value'] = cisa_7_day
+            component_updated = True
+        elif 'CISA-KNOWN-EXPLOITED|due_2_week' in qfilter['value']:
+            findex = query_detail['filters'].index(qfilter)
+            query_detail['filters'][findex]['value'] = cisa_14_day
+            component_updated = True
+        elif 'CISA-KNOWN-EXPLOITED|due_4_week' in qfilter['value']:
+            findex = query_detail['filters'].index(qfilter)
+            query_detail['filters'][findex]['value'] = cisa_28_day
+            component_updated = True
+        elif 'CISA-KNOWN-EXPLOITED|due_8_week' in qfilter['value']:
+            findex = query_detail['filters'].index(qfilter)
+            query_detail['filters'][findex]['value'] = cisa_8_week
+            component_updated = True
+        elif 'CISA-KNOWN-EXPLOITED|due_12_week' in qfilter['value']:
+            findex = query_detail['filters'].index(qfilter)
+            query_detail['filters'][findex]['value'] = cisa_12_week
+            component_updated = True
+        elif 'CISA-KNOWN-EXPLOITED|due_12plus_week' in qfilter['value']:
+            findex = query_detail['filters'].index(qfilter)
+            query_detail['filters'][findex]['value'] = cisa_12plus_week
+            component_updated = True
+    sc.queries.edit(query_detail['id'], filters=query_detail['filters'])
+    return component_updated
     
-
-
-# Generate a canned t.sc dashboard about the entry
-def gen_dashboard(entry_title, entry_description, relative_due_dates, new_dashboard, dashboard_id):
-    Entry_Title = entry_title.replace("'","")
-    #Entry_ShortDesc = "For more information, please see the full page at " + entry_link
-    Entry_Summary = entry_description.replace("'","").replace("\\","/")
-    today = datetime.date.today()
-    Current_Date = str(today)
+    
+# make relative dates data xref filterable
+def enable_xrefs(relative_due_dates):
     for key in relative_due_dates.keys():
         entry_title = key
         xref_string = ""
@@ -294,6 +348,16 @@ def gen_dashboard(entry_title, entry_description, relative_due_dates, new_dashbo
             cisa_12_week = xref_string.rstrip(",")
         elif key == "CISA Vulns Due in more than 12 weeks":
             cisa_12plus_week = xref_string.rstrip(",")
+    return cisa_past_due,cisa_7_day,cisa_14_day,cisa_28_day,cisa_8_week,cisa_12_week,cisa_12plus_week
+
+# Generate a canned t.sc dashboard about the entry
+def gen_dashboard(entry_title, entry_description, relative_due_dates, new_dashboard, dashboard_id):
+    Entry_Title = entry_title.replace("'","")
+    #Entry_ShortDesc = "For more information, please see the full page at " + entry_link
+    Entry_Summary = entry_description.replace("'","").replace("\\","/")
+    today = datetime.date.today()
+    Current_Date = str(today)
+    cisa_past_due,cisa_7_day,cisa_14_day,cisa_28_day,cisa_8_week,cisa_12_week,cisa_12plus_week = enable_xrefs(relative_due_dates)
     
     dashboard_template_file = open('templates/sc_working_dashboard_template.txt', "r")
     dashboard_template_contents = dashboard_template_file.read()
