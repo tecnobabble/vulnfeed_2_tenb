@@ -248,7 +248,7 @@ def query_populate():
                 print("Created an asset for", entry_title)
     
     if dashboard_request is True:
-        entry_description = "Automatically updated; do not edit this dashboard; your changes will be overwritten."
+        entry_description = ""
 
         skip_dashboard = False
     
@@ -263,7 +263,6 @@ def query_populate():
                 for component in dcomponent['response']:
                     refresh_required = False
                     component_details = json.loads(sc.get('dashboard/' + dashboard_id + '/component/' + component['id']).text)['response']
-                    #if component_details['componentType'] == 'matrix':
                     print("Checking " + component_details['name'] + "...")
                     for datasources in component_details['definition']['allDataSources']:
                         query_detail = sc.queries.details(datasources['queryID'])
@@ -275,16 +274,102 @@ def query_populate():
                     data = { 'name' : dashboard_name }
                     sc.patch('dashboard/' + dashboard_id, params=data)
                     print("Updating the name of " + sc_dashboards['response']['usable'][x]['name'] + " to " + dashboard_name) 
-                
-                #sc.delete('dashboard/' + dashboard_id)
-                #gen_dashboard(entry_title, entry_description, relative_due_dates, False, dashboard_id)
                 skip_dashboard = True
                 break
         if skip_dashboard is False:
             gen_dashboard(entry_title, entry_description, relative_due_dates, True, 0)
-            print("Created an dashboard for", dashboard_name)
+            print("Created a new dashboard for", dashboard_name)
     
+    if arc_request is True:
+        skip_arc = False
+        skip_arc_entry = False
+        
+        arc_name = arc_template_name.replace("{{ Current_Date }}", str(today))
+        
+        for x in range(len(sc_arcs['response']['usable'])):
+            if "CISA Known Exploited Vulns Status - Updated 2" in sc_arcs['response']['usable'][x]['name']:
+                print("Updating the existing ARC for", sc_arcs['response']['usable'][x]['name'])
+                skip_arc = True
+                for y in range(len(sc_arcs['response']['usable'][x]['policyStatements'])):
+                    if entry_title == sc_arcs['response']['usable'][x]['policyStatements'][y]['label']:
+                        print("There is an existing ARC entry for", entry_title, "skipping")
+                        skip_arc_entry = True
+                        break
+                    else:
+                        arc_id = sc_arcs['response']['usable'][x]['id']
+        if skip_arc is False:
+            gen_arc(relative_due_dates, arc_name)
+            print("Created an ARC for", arc_name)  
+    
+    print("Finished updating Tenable.sc with the latest available data from CISA.")
     exit()
+   
+# Generate an arc for the first time
+def gen_arc(relative_due_dates, entry_title):
+    Entry_Title = entry_title
+    today = datetime.date.today()
+    Current_Date = str(today)
+    cisa_past_due,cisa_7_day,cisa_14_day,cisa_28_day,cisa_8_week,cisa_12_week,cisa_12plus_week = enable_xrefs(relative_due_dates)
+
+    # Load the definition template as a jinja template
+    env = Environment(loader = FileSystemLoader('templates'), trim_blocks=True, lstrip_blocks=True)
+    arc_template_def = env.get_template('arc_definition.txt')
+
+    #Render the definition template with data and print the output
+    arc_raw = arc_template_def.render(Current_Date=Current_Date, cisa_past_due=cisa_past_due, cisa_7_day=cisa_7_day, cisa_14_day=cisa_14_day, cisa_28_day=cisa_28_day, cisa_8_week=cisa_8_week, cisa_12_week=cisa_12_week, cisa_12plus_week=cisa_12plus_week)
+
+    # Convert the now rendered template back into a format that tsc can understand (base64 encoded PHP serilaized string)
+    arc_raw = ast.literal_eval(arc_raw)
+    arc_def_output = base64.b64encode(serialize(arc_raw))
+
+    # Render the full XML arc template and write the output to a file that we'll then upload to tsc.
+    arc = env.get_template('arc_working_template.txt')
+    arc_xml = arc.render(Entry_Title=Entry_Title, Feed=feed, arc_output=arc_def_output.decode('utf8'))
+    
+    arc_name = Entry_Title.replace(" ","").replace(":","-")[:15] + "_arc.xml"
+    generated_tsc_arc_file = open(arc_name, "w")
+    generated_tsc_arc_file.write(arc_xml)
+    generated_tsc_arc_file.close()
+
+    # Upload the arc to T.sc
+    generated_tsc_arc_file = open(arc_name, "r")
+    tsc_arc_file = sc.files.upload(generated_tsc_arc_file)
+    arc_data = { "name":entry_title,"filename":str(tsc_arc_file), "order":"0" }
+    arc_post = sc.post('arc/import', json=arc_data).text
+    arc_post = json.loads(arc_post)
+    global arc_id
+    arc_id = arc_post['response']['id']
+    generated_tsc_arc_file.close()
+
+    #Grab a new copy of the ARCs in T.sc, cause we just created a new one
+    global sc_arcs
+    sc_arcs = sc.get('arc').text
+    sc_arcs = json.loads(sc_arcs)
+
+
+# Create a new arc policy statement
+def gen_arc_policy(cve_s, arc_id, entry_title):
+    Entry_Title = entry_title
+    cve_list = cve_s
+    arc_id = "arc/" + arc_id
+
+    sc_arc_feed = sc.get(arc_id).text
+    sc_arcs_feed = json.loads(sc_arc_feed)
+
+    sc_arc_policies = sc_arcs_feed['response']['policyStatements']
+
+    env = Environment(loader = FileSystemLoader('templates'), trim_blocks=True, lstrip_blocks=True)
+    arc_template_def = env.get_template('arc_policy.txt')
+
+    #Render the definition template with data and print the output
+    arc_raw = arc_template_def.render(cve_list=cve_list, Entry_Title=Entry_Title)
+    arc_raw = json.loads(arc_raw)
+    sc_arc_policies.append(arc_raw)
+    sc_arc_policies_post = { 'policyStatements': sc_arc_policies, 'focusFilters': [], "schedule":{"start":"TZID=UTC:20200707T193300","repeatRule":"FREQ=DAILY;INTERVAL=1","type":"ical","enabled":"true"} }
+    arc_patch = sc.patch(arc_id, json=sc_arc_policies_post).text
+    arc_patch = json.loads(arc_patch)
+
+   
    
 #Update a query 
 def update_system_query(query_detail, relative_due_dates):
@@ -402,70 +487,6 @@ def gen_asset(entry_title, asset_rules, new_asset, asset_id, today):
         sc.asset_lists.create(name=asset_name,list_type="dynamic",tags="CISA KEV",rules=asset_rules,description="Updated at " + str(today))
     elif new_asset is False:
         sc.asset_lists.edit(id=asset_id,list_type="dynamic",tags="CISA KEV",rules=asset_rules,description="Updated at " + str(today))
-
-
-# Generate an arc for the first time
-def gen_arc(cve_s, entry_title):
-    Entry_Title = entry_title
-    cve_list = cve_s
-
-    # Load the definition template as a jinja template
-    env = Environment(loader = FileSystemLoader('/templates'), trim_blocks=True, lstrip_blocks=True)
-    arc_template_def = env.get_template('arc_definition.txt')
-
-    #Render the definition template with data and print the output
-    arc_raw = arc_template_def.render(cve_list=cve_list)
-
-    # Convert the now rendered template back into a format that tsc can understand (base64 encoded PHP serilaized string)
-    arc_raw = ast.literal_eval(arc_raw)
-    arc_def_output = base64.b64encode(serialize(arc_raw))
-
-    # Render the full XML report template and write the output to a file that we'll then upload to tsc.
-    arc = env.get_template('arc_working_template.txt')
-    arc_xml = arc.render(Entry_Title=Entry_Title, Feed=feed, arc_output=arc_def_output.decode('utf8'))
-    
-    arc_name = Entry_Title.replace(" ","").replace(":","-")[:15] + "_arc.xml"
-    generated_tsc_arc_file = open(arc_name, "w")
-    generated_tsc_arc_file.write(arc_xml)
-    generated_tsc_arc_file.close()
-
-    # Upload the report to T.sc
-    generated_tsc_arc_file = open(arc_name, "r")
-    tsc_arc_file = sc.files.upload(generated_tsc_arc_file)
-    arc_data = { "name":"","filename":str(tsc_arc_file), "order":"0" }
-    arc_post = sc.post('arc/import', json=arc_data).text
-    arc_post = json.loads(arc_post)
-    global arc_id
-    arc_id = arc_post['response']['id']
-    generated_tsc_arc_file.close()
-
-    #Grab a new copy of the ARCs in T.sc, cause we just created a new one
-    global sc_arcs
-    sc_arcs = sc.get('arc').text
-    sc_arcs = json.loads(sc_arcs)
-
-
-# Create a new arc policy statement
-def gen_arc_policy(cve_s, arc_id, entry_title):
-    Entry_Title = entry_title
-    cve_list = cve_s
-    arc_id = "arc/" + arc_id
-
-    sc_arc_feed = sc.get(arc_id).text
-    sc_arcs_feed = json.loads(sc_arc_feed)
-
-    sc_arc_policies = sc_arcs_feed['response']['policyStatements']
-
-    env = Environment(loader = FileSystemLoader('/templates'), trim_blocks=True, lstrip_blocks=True)
-    arc_template_def = env.get_template('arc_policy.txt')
-
-    #Render the definition template with data and print the output
-    arc_raw = arc_template_def.render(cve_list=cve_list, Entry_Title=Entry_Title)
-    arc_raw = json.loads(arc_raw)
-    sc_arc_policies.append(arc_raw)
-    sc_arc_policies_post = { 'policyStatements': sc_arc_policies, 'focusFilters': [], "schedule":{"start":"TZID=UTC:20200707T193300","repeatRule":"FREQ=DAILY;INTERVAL=1","type":"ical","enabled":"true"} }
-    arc_patch = sc.patch(arc_id, json=sc_arc_policies_post).text
-    arc_patch = json.loads(arc_patch)
 
 
 # Generate a canned t.sc report about the entry
@@ -593,7 +614,7 @@ if len(feed_URL) >= 10:
 
         # replace def with tag to be substituted later
         new_sc_template = re.sub("<definition>(.+)</definition>", "<definition>{{ report_output }}</definition>", str(template_contents))
-        sc_working_template_file = open('/templates/sc_working_template.txt', "w")
+        sc_working_template_file = open('templates/sc_working_template.txt', "w")
         sc_working_template_file.write(new_sc_template)
         sc_working_template_file.close()
 
@@ -605,17 +626,17 @@ if len(feed_URL) >= 10:
         template_def = str(template_def).replace("CVE-1990-0000", "{{ cve_list }}")
 
         # Write this definition template to a file
-        template_def_file = open("/templates/definition.txt", "w")
+        template_def_file = open("templates/definition.txt", "w")
         template_def_file.write(template_def)
         template_def_file.close()
     if arc_request is True:
         sc_arcs = sc.get('arc').text
         sc_arcs = json.loads(sc_arcs)
         arc_name = feed + " Advisory Alerts"
-        if os.path.isfile('/templates/custom_arc_report.xml'):
-            arc_template_path = '/templates/custom_arc_report.xml'
+        if os.path.isfile('templates/custom_arc_report.xml'):
+            arc_template_path = 'templates/custom_arc_report.xml'
         else:
-            arc_template_path = "/templates/arc_template.xml"
+            arc_template_path = "templates/arc_template.xml"
 
         # Let's read the base sc template and pull out the report definition and other info
         arc_template_file = open(arc_template_path, "r")
@@ -627,7 +648,7 @@ if len(feed_URL) >= 10:
         # replace def with tag to be substituted later
         new_arc_template = re.sub("<definition>(.+)</definition>", "<definition>{{ arc_output }}</definition>", str(arc_template_contents))
         arc_policy_def = re.search("(<policyStatement>.+</policyStatement>)", str(new_arc_template))
-        arc_working_template_file = open('/templates/arc_working_template.txt', "w")
+        arc_working_template_file = open('templates/arc_working_template.txt', "w")
         arc_working_template_file.write(new_arc_template)
         arc_working_template_file.close()
 
@@ -636,10 +657,18 @@ if len(feed_URL) >= 10:
         arc_template_def = unserialize(arc_template_def, decode_strings=True)
 
         # Replace the CVE placeholder with something we can swap out later
-        arc_template_def = str(arc_template_def).replace("CVE-1990-0000", "{{ cve_list }}")
+        arc_template_def = str(arc_template_def)\
+                    .replace("CVE-1990-0000", "{{ cve_list }}")\
+                    .replace("{{ CISA|Past_Due }}", "{{ cisa_past_due }}")\
+                    .replace("{{ CISA|7_Days }}", "{{ cisa_7_day }}")\
+                    .replace("{{ CISA|7-14_Days }}", "{{ cisa_14_day }}")\
+                    .replace("{{ CISA|14-28_Days }}", "{{ cisa_28_day }}")\
+                    .replace("{{ CISA|4-8_Weeks }}", "{{ cisa_8_week }}")\
+                    .replace("{{ CISA|8-12_Weeks }}", "{{ cisa_12_week }}")\
+                    .replace("{{ CISA|12+_Weeks }}", "{{ cisa_12plus_week }}")
 
         # Write this definition template to a file
-        arc_template_def_file = open("/templates/arc_definition.txt", "w")
+        arc_template_def_file = open("templates/arc_definition.txt", "w")
         arc_template_def_file.write(arc_template_def)
         arc_template_def_file.close()
 
