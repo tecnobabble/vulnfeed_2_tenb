@@ -102,7 +102,7 @@ def query_populate():
             with requests.Session() as s:
                 download = s.get(feed_URL)
             data = json.loads(download.content.decode())
-            print('Downloaded CISA KEVs')
+            print('Downloaded latest CISA KEVs from https://www.cisa.gov')
         except:
             print("Something went wrong with the CISA feed.")
             exit()
