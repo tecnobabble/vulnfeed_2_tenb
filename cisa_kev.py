@@ -567,16 +567,16 @@ for current_argument, current_value in arguments:
         exit()
     #elif current_argument in ("-s", "--t.sc"): # Not implemented until we have T.io functionality
         #print ("Pass to T.sc and attempt to create queries")
-    if current_argument in ("-e","--email"):
-        passed_emails = ""
-        passed_emails = current_value.split(",")
-        email_list = email_validate(passed_emails)
-    if current_argument in ("-r", "--report"):
-        report_request = True
-    if current_argument in ("--alert"):
-        alert_request = True
-    if current_argument in ("--arc"):
-        arc_request = True
+    #if current_argument in ("-e","--email"):
+    #    passed_emails = ""
+    #    passed_emails = current_value.split(",")
+    #    email_list = email_validate(passed_emails)
+    #if current_argument in ("-r", "--report"):
+    #    report_request = True
+    #if current_argument in ("--alert"):
+    #    alert_request = True
+    #if current_argument in ("--arc"):
+    #    arc_request = True
     if current_argument in ("--asset"):
         asset_request = True
     if current_argument in ("--dashboard"):
@@ -641,7 +641,7 @@ if len(feed_URL) >= 10:
         # Let's read the base sc template and pull out the report definition and other info
         arc_template_file = open(arc_template_path, "r")
         arc_template_contents = arc_template_file.read()
-        arc_template_def = re.search("<definition>(.+)</definition>", str(arc_template_contents))
+        arc_template_def = re.findall("<definition>(.+)</definition>", str(arc_template_contents))
         arc_template_name = re.search("<name>(.+)</name>", str(arc_template_contents)).group(1)
         arc_template_file.close()
 

@@ -1,0 +1,8 @@
+
+.env
+templates/.DS_Store
+.DS_Store
+known_exploited_vulnerabilities.json
+templates/arc_definition.txt
+templates/arc_working_template.txt
+templates/sc_working_dashboard_template.txt
