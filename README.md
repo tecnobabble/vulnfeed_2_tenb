@@ -9,6 +9,12 @@ Integrate [Tenable.sc](https://www.tenable.com/products/tenable-sc) with any of 
 
 ***Use of this tool is subject to the terms and conditions identified below, and is not subject to any license agreement you may have with Tenable***
 
+## Requirements
+* [Tenable.sc](https://www.tenable.com/products/tenable-sc) 5.13 or higher is required for [API key usage](https://docs.tenable.com/tenablesc/Content/GenerateAPIKey.htm)
+* Docker; though technically you can run the script standalone (not supported).
+* Internet access for the container to access the RSS feed of the cyber threat feed you're grabbing
+* Network access to your T.sc instance over the UI/API interface (default is TCP 443)
+
 ## Installation
 
 ### Docker Image
@@ -47,11 +53,6 @@ SC_PORT=8443
 * The user must be able to create alerts, if the `--alert` flag is used, otherwise no specific user role is needed for this user, as any user can create queries, assets, dashboards, and reports or view plugin attribute data.
 * If desired to be used in multiple organizations within one [Tenable.sc](https://www.tenable.com/products/tenable-sc) console, run the script multiple times, specifiying different API keys for a user in each organization.
 
-## Requirements
-* [Tenable.sc](https://www.tenable.com/products/tenable-sc) 5.13 or higher is required for [API key usage](https://docs.tenable.com/tenablesc/Content/GenerateAPIKey.htm)
-* Docker; though technically you can run the script standalone (not supported).
-* Internet access for the container to access the RSS feed of the cyber threat feed you're grabbing
-* Network access to your T.sc instance over the UI/API interface (default is TCP 443)
 
 ## Usage
 
