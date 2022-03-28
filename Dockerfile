@@ -1,4 +1,4 @@
-FROM python:3.10.0-slim-buster
+FROM python:3.10.4-slim-buster
 
 RUN /usr/local/bin/python -m pip install --upgrade pip  
 RUN pip3 install "pyTenable>=1.4.3" feedparser python-decouple requests BeautifulSoup4 phpserialize jinja2 lxml
