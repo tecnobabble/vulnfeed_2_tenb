@@ -230,7 +230,8 @@ def query_populate():#input_url, feed_source, sc, email_list):
             print("Something looks to be wrong with the", feed, "feed. Please verify connectivity.")
     
     
-    for entry in feed_details.entries:
+    for index, entry in enumerate(feed_details.entries):
+        if index == 10: break
         advisory_cve = []
         entry_title = ""
         # Search through the text of the advisory and pull out any CVEs
@@ -249,15 +250,11 @@ def query_populate():#input_url, feed_source, sc, email_list):
         elif feed == "CIS" or feed == "MS-ISAC":
             try:
                 if feed == "CIS" or feed == "MS-ISAC":
-                    cis_id = re.search(r"advisory number:.{1,150}(\d{4}-\d{2,5})", str(entry.summary_detail), flags=re.IGNORECASE | re.DOTALL).group(1)
-                    entry_title = entry.title + " (" + cis_id + ")"
+                    advisory_cve, cis_id = cis_search(entry)
+                    entry_title = cis_id + ": " + entry.title
                     entry_link = entry.link
-                    advisory_cve = re.findall("(CVE-\d{4}-\d{1,5})", str(entry.summary_detail))
-            except AttributeError:
-                entry_title = entry.title
-                entry_link = entry.link
-                advisory_cve = re.findall("(CVE-\d{4}-\d{1,5})", str(entry.summary_detail))
-                print("Something went wrong parsing the feed looking for the advisory ID")
+            except AttributeError as error:
+                print("Something went wrong parsing the feed looking for the advisory ID: " + error)
         else:    
             entry_title = entry.title
             entry_link = entry.link
@@ -574,6 +571,13 @@ def tenable_search(entry):
     url = re.search("(https://www\.tenable\.com/blog/.+)", str(entry['link']))
     r = requests.get(url.group(0))
     return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text))
+    
+# CIS suddenly sometimes doesn't publish enough info in their feed, we need to grab and parse the actual articles.
+def cis_search(entry):
+    url = re.search("(https://www\.cisecurity\.org/advisory/.+)", str(entry['link']))
+    r = requests.get(url.group(0))
+    advisory_id = re.search(r"advisory number:.{1,150}(\d{4}-\d{2,5})", str(r.text), flags=re.IGNORECASE | re.DOTALL).group(1)
+    return re.findall("(CVE-\d{4}-\d{1,5})", str(r.text)), advisory_id
 
 # ACSC doesn't publish enough info in their feed, we need to grab and parse the actual articles.
 # Commenting out; disabling the ACSC feed because they removed their RSS feed :( 7-8-20, v1.1.1
