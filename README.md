@@ -41,8 +41,8 @@ Setup your local .env file with the appropriate tenable.sc attributes (replace t
 
 ```bash
 SC_ADDRESS=10.0.0.102
-SC_ACCESS_KEY=89b0aa234237ec13b06da8283919c0f7
-SC_SECRET_KEY=8360bf971eb9a1e488d294d830a24eba
+SC_ACCESS_KEY=aaaaaaabbbbbbccccddddeeeffff1234 
+SC_SECRET_KEY=aaaaaaabbbbbbccccddddeeeffff1234 
 SC_PORT=8443
 ```
 
